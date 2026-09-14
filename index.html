@@ -4,19 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Steam Panel</title>
-    <!-- Подключаем скрипт Telegram Web App -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        /* Подстраиваемся под цвета темы Телеграма */
         body {
             background-color: var(--tg-theme-secondary-bg-color, #1c1c1d);
             color: var(--tg-theme-text-color, #ffffff);
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             margin: 0;
             padding: 16px;
+            overflow-x: hidden;
         }
 
-        /* Поисковая строка */
+        /* --- ЭКРАН СПИСКА --- */
+        #page-list {
+            display: block;
+            transition: opacity 0.3s;
+        }
+
         .search-container {
             background-color: var(--tg-theme-bg-color, #2c2c2e);
             border-radius: 10px;
@@ -34,18 +38,9 @@
             outline: none;
             margin-left: 10px;
         }
-        .search-container input::placeholder {
-            color: var(--tg-theme-hint-color, #8e8e93);
-        }
 
-        /* Заголовок секции */
-        h2 {
-            font-size: 18px;
-            margin: 0 0 10px 10px;
-            font-weight: 600;
-        }
+        h2 { font-size: 18px; margin: 0 0 10px 10px; font-weight: 600; }
 
-        /* Список профилей */
         .list-box {
             background-color: var(--tg-theme-bg-color, #2c2c2e);
             border-radius: 12px;
@@ -57,126 +52,226 @@
             padding: 12px 16px;
             border-bottom: 1px solid var(--tg-theme-secondary-bg-color, #1c1c1d);
             cursor: pointer;
-            transition: background 0.2s;
         }
-        .list-item:active {
-            background-color: var(--tg-theme-secondary-bg-color, #1c1c1d);
-        }
-        .list-item:last-child {
-            border-bottom: none;
-        }
+        .list-item:active { background-color: var(--tg-theme-secondary-bg-color, #1c1c1d); }
+        .list-item:last-child { border-bottom: none; }
 
-        /* Иконки и аватарки */
         .avatar {
-            width: 40px;
-            height: 40px;
+            width: 42px; height: 42px;
             border-radius: 50%;
             margin-right: 15px;
             object-fit: cover;
+            background-color: #333; /* Заглушка, пока грузится фото */
         }
+        
         .icon-add {
-            width: 40px;
-            height: 40px;
+            width: 42px; height: 42px;
             border-radius: 50%;
-            background-color: transparent;
             color: var(--tg-theme-link-color, #0a84ff);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 24px;
-            margin-right: 15px;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 28px; margin-right: 15px;
         }
 
-        /* Текст внутри элементов списка */
-        .item-info {
-            flex-grow: 1;
+        .item-info { flex-grow: 1; }
+        .item-title { font-size: 16px; font-weight: 500; }
+        .item-subtitle { font-size: 13px; color: var(--tg-theme-hint-color, #8e8e93); margin-top: 2px; }
+        .add-text { color: var(--tg-theme-link-color, #0a84ff); font-size: 16px; font-weight: 500; }
+        .arrow { color: var(--tg-theme-hint-color, #8e8e93); font-weight: bold; }
+
+        /* --- ЭКРАН ДОСЬЕ --- */
+        #page-dossier {
+            display: none;
+            text-align: center;
+            animation: slideIn 0.3s forwards;
         }
-        .item-title {
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .dossier-header {
+            margin-top: 20px;
+            margin-bottom: 30px;
+        }
+        .dossier-avatar {
+            width: 120px; height: 120px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-bottom: 15px;
+            border: 3px solid var(--tg-theme-button-color, #2481cc);
+        }
+        .dossier-name { font-size: 24px; font-weight: bold; margin: 0; }
+        .dossier-id { font-size: 14px; color: var(--tg-theme-hint-color, #8e8e93); margin-top: 5px; }
+
+        /* Кнопки и карточки досье */
+        .btn-main {
+            background-color: var(--tg-theme-button-color, #2481cc);
+            color: var(--tg-theme-button-text-color, #ffffff);
+            border: none;
+            border-radius: 10px;
+            padding: 14px;
             font-size: 16px;
-            font-weight: 500;
+            font-weight: 600;
+            width: 100%;
+            cursor: pointer;
+            margin-bottom: 20px;
         }
-        .item-subtitle {
-            font-size: 13px;
-            color: var(--tg-theme-hint-color, #8e8e93);
-            margin-top: 2px;
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            text-align: left;
         }
-        .add-text {
-            color: var(--tg-theme-link-color, #0a84ff);
+        .feature-card {
+            background-color: var(--tg-theme-bg-color, #2c2c2e);
+            padding: 15px;
+            border-radius: 12px;
+        }
+        .fc-title { font-size: 13px; color: var(--tg-theme-hint-color, #8e8e93); margin-bottom: 5px; }
+        .fc-value { font-size: 15px; font-weight: 500; }
+        .fc-locked { color: var(--tg-theme-hint-color, #8e8e93); font-style: italic; font-size: 13px;}
+
+        .btn-delete {
+            background-color: transparent;
+            color: #ff3b30;
+            border: 1px solid #ff3b30;
+            border-radius: 10px;
+            padding: 12px;
             font-size: 16px;
-            font-weight: 500;
-        }
-        .arrow {
-            color: var(--tg-theme-hint-color, #8e8e93);
-            font-weight: bold;
+            width: 100%;
+            margin-top: 20px;
+            cursor: pointer;
         }
     </style>
 </head>
 <body>
 
-    <!-- Поисковик -->
-    <div class="search-container">
-        <span style="color: var(--tg-theme-hint-color);">🔍</span>
-        <input type="text" placeholder="Search profiles...">
+    <!-- ЭКРАН 1: СПИСОК -->
+    <div id="page-list">
+        <div class="search-container">
+            <span>🔍</span>
+            <input type="text" placeholder="Search profiles...">
+        </div>
+        <h2>Мои типы</h2>
+        <div class="list-box">
+            
+            <div class="list-item" onclick="addNew()">
+                <div class="icon-add">⊕</div>
+                <div class="item-info">
+                    <div class="add-text">Add a New Profile</div>
+                </div>
+            </div>
+
+            <!-- Реальные ссылки на фото с серверов Steam (akamai) -->
+            <div class="list-item" onclick="openDossier('76561198192868411', '$.U.G.R.O.B.', 'https://avatars.akamai.steamstatic.com/fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb_full.jpg')">
+                <img class="avatar" src="https://avatars.akamai.steamstatic.com/fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb_full.jpg" alt="Avatar">
+                <div class="item-info">
+                    <div class="item-title">$.U.G.R.O.B.</div>
+                    <div class="item-subtitle">76561198192868411</div>
+                </div>
+                <div class="arrow">›</div>
+            </div>
+
+            <div class="list-item" onclick="openDossier('76561199581373731', 'Скрытый профиль', 'https://avatars.akamai.steamstatic.com/a8b688d6174a806ea9e1a89c9577df0f03f36ee3_full.jpg')">
+                <img class="avatar" src="https://avatars.akamai.steamstatic.com/a8b688d6174a806ea9e1a89c9577df0f03f36ee3_full.jpg" alt="Avatar">
+                <div class="item-info">
+                    <div class="item-title">Скрытый профиль</div>
+                    <div class="item-subtitle">76561199581373731</div>
+                </div>
+                <div class="arrow">›</div>
+            </div>
+
+        </div>
     </div>
 
-    <h2>Мои типы</h2>
+    <!-- ЭКРАН 2: ДОСЬЕ -->
+    <div id="page-dossier">
+        <div class="dossier-header">
+            <img id="dos-avatar" class="dossier-avatar" src="" alt="Avatar">
+            <h1 id="dos-name" class="dossier-name">Name</h1>
+            <p id="dos-id" class="dossier-id">ID</p>
+        </div>
 
-    <!-- Контейнер с карточками -->
-    <div class="list-box">
-        
-        <!-- Кнопка добавления -->
-        <div class="list-item" onclick="addNew()">
-            <div class="icon-add">⊕</div>
-            <div class="item-info">
-                <div class="add-text">Add a New Profile</div>
+        <button class="btn-main" onclick="openSteamLink()">🔗 Открыть профиль Steam</button>
+
+        <!-- Задел под будущие функции -->
+        <div class="features-grid">
+            <div class="feature-card" onclick="copyId()">
+                <div class="fc-title">Steam ID</div>
+                <div class="fc-value">Скопировать 📋</div>
+            </div>
+            <div class="feature-card">
+                <div class="fc-title">VAC Бан</div>
+                <div class="fc-value">Чист 🟢</div>
+            </div>
+            <div class="feature-card">
+                <div class="fc-title">Прайм статус</div>
+                <div class="fc-locked">Скоро...</div>
+            </div>
+            <div class="feature-card">
+                <div class="fc-title">Заметки</div>
+                <div class="fc-locked">Добавить ✏️</div>
             </div>
         </div>
 
-        <!-- Пример 1: Игрок -->
-        <div class="list-item" onclick="openProfile('76561198192868411')">
-            <img class="avatar" src="https://store.cloudflare.steamstatic.com/public/shared/images/responsive/share_steam_logo.png" alt="Avatar">
-            <div class="item-info">
-                <div class="item-title">$.U.G.R.O.B.</div>
-                <div class="item-subtitle">76561198192868411</div>
-            </div>
-            <div class="arrow">›</div>
-        </div>
-
-        <!-- Пример 2: Игрок -->
-        <div class="list-item" onclick="openProfile('76561199581373731')">
-            <img class="avatar" src="https://store.cloudflare.steamstatic.com/public/shared/images/responsive/share_steam_logo.png" alt="Avatar">
-            <div class="item-info">
-                <div class="item-title">Скрытый профиль</div>
-                <div class="item-subtitle">76561199581373731</div>
-            </div>
-            <div class="arrow">›</div>
-        </div>
-
+        <button class="btn-delete" onclick="deleteProfile()">❌ Удалить из базы</button>
     </div>
 
     <script>
-        // Инициализируем Telegram Web App API
         let tg = window.Telegram.WebApp;
-        tg.expand(); // Открываем панель на всю доступную высоту
+        tg.expand();
 
-        function openProfile(steamId) {
-            // Копируем ID в буфер обмена
-            navigator.clipboard.writeText(steamId);
+        // Переменная для хранения текущего открытого ID
+        let currentSteamId = "";
+
+        // Настройка нативной кнопки "Назад" в шапке Телеграма
+        tg.BackButton.onClick(function() {
+            document.getElementById('page-dossier').style.display = 'none';
+            document.getElementById('page-list').style.display = 'block';
+            tg.BackButton.hide();
+        });
+
+        // Открытие досье с подстановкой данных
+        function openDossier(steamId, name, avatarUrl) {
+            currentSteamId = steamId;
             
-            // Встроенное уведомление Телеграма
-            tg.showAlert("ID " + steamId + " скопирован!\n\nСейчас откроем профиль Steam.");
+            // Подставляем данные в HTML
+            document.getElementById('dos-avatar').src = avatarUrl;
+            document.getElementById('dos-name').innerText = name;
+            document.getElementById('dos-id').innerText = steamId;
+
+            // Переключаем экраны
+            document.getElementById('page-list').style.display = 'none';
+            document.getElementById('page-dossier').style.display = 'block';
             
-            // Открываем профиль в браузере
-            setTimeout(() => {
-                tg.openLink("https://steamcommunity.com/profiles/" + steamId);
-            }, 1500);
+            // Показываем кнопку "Назад"
+            tg.BackButton.show();
+        }
+
+        // Действия внутри досье
+        function openSteamLink() {
+            tg.openLink("https://steamcommunity.com/profiles/" + currentSteamId);
+        }
+
+        function copyId() {
+            navigator.clipboard.writeText(currentSteamId);
+            tg.showAlert("ID " + currentSteamId + " скопирован!");
+        }
+
+        function deleteProfile() {
+            tg.showConfirm("Удалить этот профиль из базы?", function(confirmed) {
+                if (confirmed) {
+                    tg.showAlert("Профиль удален! (В будущем тут будет связь с базой данных)");
+                    tg.BackButton.onClick(); // Эмулируем нажатие "назад"
+                }
+            });
         }
 
         function addNew() {
-            tg.showConfirm("Хочешь добавить новый профиль? Отправь ссылку боту в чат!", function(confirmed) {
-                if (confirmed) {
-                    tg.close(); // Закрываем панель, чтобы юзер мог скинуть ссылку
-                }
+            tg.showConfirm("Добавить новый профиль? Отправь ссылку боту в чат!", function(confirmed) {
+                if (confirmed) tg.close();
             });
         }
     </script>

@@ -14,7 +14,6 @@
             margin: 0; padding: 16px; overflow-x: hidden;
         }
 
-        /* --- СПИСОК И ПОИСК --- */
         #page-list { transition: opacity 0.3s; }
         .search-container {
             background-color: var(--tg-theme-bg-color, #2c2c2e);
@@ -39,7 +38,6 @@
         .list-item:active { background-color: var(--tg-theme-secondary-bg-color, #1c1c1d); }
         .list-item:last-child { border-bottom: none; }
 
-        /* Аватарка и индикатор онлайна */
         .avatar-container { position: relative; margin-right: 15px; }
         .avatar {
             width: 42px; height: 42px; border-radius: 50%; object-fit: cover;
@@ -48,11 +46,10 @@
         .online-dot {
             position: absolute; bottom: 0px; right: 0px;
             width: 12px; height: 12px; border-radius: 50%;
-            background-color: #34c759; /* Зеленый цвет онлайна */
+            background-color: #34c759;
             border: 2px solid var(--tg-theme-bg-color, #2c2c2e);
         }
 
-        /* Новый нормальный плюсик */
         .icon-add {
             width: 42px; height: 42px; border-radius: 50%;
             background-color: rgba(10, 132, 255, 0.1);
@@ -68,7 +65,6 @@
         .add-text { color: var(--tg-theme-link-color, #0a84ff); font-size: 16px; font-weight: 500; }
         .arrow { color: var(--tg-theme-hint-color, #8e8e93); font-weight: bold; }
 
-        /* --- ВСПЛЫВАЮЩЕЕ УВЕДОМЛЕНИЕ (TOAST) --- */
         #toast {
             visibility: hidden; min-width: 200px; margin-left: -115px;
             background-color: rgba(40, 40, 40, 0.95); color: #fff;
@@ -80,7 +76,6 @@
         }
         #toast.show { visibility: visible; opacity: 1; bottom: 40px; }
 
-        /* --- МОДАЛЬНОЕ ОКНО ДОБАВЛЕНИЯ --- */
         #add-modal {
             display: none; position: fixed; top: 0; left: 0;
             width: 100%; height: 100%; background: rgba(0,0,0,0.7);
@@ -94,7 +89,6 @@
         .modal-content h3 { margin-top: 0; font-size: 18px; }
         .modal-content p { font-size: 14px; color: var(--tg-theme-hint-color); margin-bottom: 20px; }
 
-        /* --- ДОСЬЕ --- */
         #page-dossier { display: none; text-align: center; animation: slideIn 0.3s forwards; }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -129,20 +123,17 @@
 </head>
 <body>
 
-    <!-- Всплывающая плашка -->
     <div id="toast">✅ ID скопирован</div>
 
-    <!-- Модальное окно добавления -->
     <div id="add-modal">
         <div class="modal-content">
             <h3>Добавить профиль</h3>
-            <p>Чтобы бот сохранил профиль в базу данных, отправь ему ссылку или Steam ID прямо в чат.</p>
-            <button class="btn-main" onclick="tg.close()">Перейти в чат с ботом</button>
+            <p>Отправь боту ссылку вида /id/имя или /profiles/17_цифр прямо в чат.</p>
+            <button class="btn-main" onclick="tg.close()">Перейти в чат</button>
             <button class="btn-secondary" onclick="closeModal()">Отмена</button>
         </div>
     </div>
 
-    <!-- СПИСОК -->
     <div id="page-list">
         <div class="search-container">
             <span>🔍</span>
@@ -152,7 +143,6 @@
         <div class="list-box" id="profiles-list"></div>
     </div>
 
-    <!-- ДОСЬЕ -->
     <div id="page-dossier">
         <div class="dossier-header">
             <img id="dos-avatar" class="dossier-avatar" src="" onerror="this.src='https://store.cloudflare.steamstatic.com/public/shared/images/responsive/share_steam_logo.png'" alt="Avatar">
@@ -180,7 +170,6 @@
         let currentSteamId = "";
         const DEFAULT_IMG = "https://store.cloudflare.steamstatic.com/public/shared/images/responsive/share_steam_logo.png";
 
-        // Декодируем данные из Python
         let profiles = [];
         const urlParams = new URLSearchParams(window.location.search);
         const dataB64 = urlParams.get('data');
@@ -194,11 +183,9 @@
             } catch(e) {}
         }
 
-        // Отрисовка списка с проверкой онлайна
         function renderList(filterText = "") {
             const listBox = document.getElementById('profiles-list');
             
-            // Нормальная иконка плюсика
             listBox.innerHTML = `
                 <div class="list-item" onclick="openModal()">
                     <div class="icon-add">
@@ -211,7 +198,6 @@
             profiles.forEach(p => {
                 if (filterText && !p.nickname.toLowerCase().includes(filterText) && !p.steam_id.includes(filterText)) return;
                 
-                // Если онлайн или в игре - рисуем зеленую точку
                 let isOnline = (p.status === 'online' || p.status === 'in-game');
                 let dotHtml = isOnline ? `<div class="online-dot"></div>` : '';
 
@@ -236,11 +222,9 @@
             renderList(e.target.value.toLowerCase());
         });
 
-        // Модальное окно
         function openModal() { document.getElementById('add-modal').style.display = 'flex'; }
         function closeModal() { document.getElementById('add-modal').style.display = 'none'; }
 
-        // Тост (приятная плашка)
         function showToast(text) {
             const toast = document.getElementById("toast");
             toast.innerText = text;
@@ -248,7 +232,6 @@
             setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 1500);
         }
 
-        // Навигация
         tg.BackButton.onClick(function() {
             document.getElementById('page-dossier').style.display = 'none';
             document.getElementById('page-list').style.display = 'block';
@@ -261,10 +244,12 @@
             document.getElementById('dos-name').innerText = name;
             document.getElementById('dos-id').innerText = steamId;
             
-            // Расшифровка статуса для досье
+            // Новая логика проверки статуса
             let statusText = "Оффлайн 🔴";
             if (status === 'online') statusText = "В сети 🟢";
-            if (status === 'in-game') statusText = "В игре 🎮";
+            else if (status === 'in-game') statusText = "В игре 🎮";
+            else if (status === 'hidden') statusText = "Скрыт 🕵️‍♂️";
+            
             document.getElementById('dos-status').innerText = statusText;
 
             document.getElementById('page-list').style.display = 'none';
@@ -275,7 +260,7 @@
         function openSteamLink() { tg.openLink("https://steamcommunity.com/profiles/" + currentSteamId); }
         function copyId() {
             navigator.clipboard.writeText(currentSteamId);
-            showToast("✅ ID " + currentSteamId + " скопирован");
+            showToast("✅ ID скопирован");
         }
     </script>
 </body>

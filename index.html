@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <!-- Запрет кэширования -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>Steam Panel</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -15,7 +14,7 @@
             margin: 0; padding: 16px; overflow-x: hidden;
         }
 
-        /* --- СПИСОК --- */
+        /* --- СПИСОК И ПОИСК --- */
         #page-list { transition: opacity 0.3s; }
         .search-container {
             background-color: var(--tg-theme-bg-color, #2c2c2e);
@@ -23,11 +22,11 @@
             display: flex; align-items: center; margin-bottom: 24px;
         }
         .search-container input {
-            background: transparent; border: none;
-            color: var(--tg-theme-text-color, #fff);
+            background: transparent; border: none; color: white;
             font-size: 16px; width: 100%; outline: none; margin-left: 10px;
         }
         h2 { font-size: 18px; margin: 0 0 10px 10px; font-weight: 600; }
+        
         .list-box {
             background-color: var(--tg-theme-bg-color, #2c2c2e);
             border-radius: 12px; overflow: hidden;
@@ -40,26 +39,66 @@
         .list-item:active { background-color: var(--tg-theme-secondary-bg-color, #1c1c1d); }
         .list-item:last-child { border-bottom: none; }
 
+        /* Аватарка и индикатор онлайна */
+        .avatar-container { position: relative; margin-right: 15px; }
         .avatar {
-            width: 42px; height: 42px; border-radius: 50%;
-            margin-right: 15px; object-fit: cover;
+            width: 42px; height: 42px; border-radius: 50%; object-fit: cover;
             background-color: #333;
         }
+        .online-dot {
+            position: absolute; bottom: 0px; right: 0px;
+            width: 12px; height: 12px; border-radius: 50%;
+            background-color: #34c759; /* Зеленый цвет онлайна */
+            border: 2px solid var(--tg-theme-bg-color, #2c2c2e);
+        }
+
+        /* Новый нормальный плюсик */
         .icon-add {
             width: 42px; height: 42px; border-radius: 50%;
+            background-color: rgba(10, 132, 255, 0.1);
             color: var(--tg-theme-link-color, #0a84ff);
             display: flex; justify-content: center; align-items: center;
-            font-size: 28px; margin-right: 15px;
+            margin-right: 15px;
         }
+        .icon-add svg { width: 20px; height: 20px; }
+
         .item-info { flex-grow: 1; }
         .item-title { font-size: 16px; font-weight: 500; }
         .item-subtitle { font-size: 13px; color: var(--tg-theme-hint-color, #8e8e93); margin-top: 2px; }
         .add-text { color: var(--tg-theme-link-color, #0a84ff); font-size: 16px; font-weight: 500; }
         .arrow { color: var(--tg-theme-hint-color, #8e8e93); font-weight: bold; }
 
+        /* --- ВСПЛЫВАЮЩЕЕ УВЕДОМЛЕНИЕ (TOAST) --- */
+        #toast {
+            visibility: hidden; min-width: 200px; margin-left: -115px;
+            background-color: rgba(40, 40, 40, 0.95); color: #fff;
+            text-align: center; border-radius: 20px; padding: 12px 20px;
+            position: fixed; z-index: 100; left: 50%; bottom: 20px;
+            font-size: 14px; font-weight: 500; backdrop-filter: blur(10px);
+            opacity: 0; transition: opacity 0.3s, bottom 0.3s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        #toast.show { visibility: visible; opacity: 1; bottom: 40px; }
+
+        /* --- МОДАЛЬНОЕ ОКНО ДОБАВЛЕНИЯ --- */
+        #add-modal {
+            display: none; position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%; background: rgba(0,0,0,0.7);
+            z-index: 50; align-items: center; justify-content: center;
+            backdrop-filter: blur(5px); animation: fadeIn 0.2s;
+        }
+        .modal-content {
+            background-color: var(--tg-theme-bg-color, #2c2c2e);
+            width: 80%; border-radius: 16px; padding: 24px; text-align: center;
+        }
+        .modal-content h3 { margin-top: 0; font-size: 18px; }
+        .modal-content p { font-size: 14px; color: var(--tg-theme-hint-color); margin-bottom: 20px; }
+
         /* --- ДОСЬЕ --- */
         #page-dossier { display: none; text-align: center; animation: slideIn 0.3s forwards; }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
         .dossier-header { margin-top: 20px; margin-bottom: 30px; }
         .dossier-avatar {
             width: 120px; height: 120px; border-radius: 50%;
@@ -74,16 +113,34 @@
             color: var(--tg-theme-button-text-color, #ffffff);
             border: none; border-radius: 10px; padding: 14px;
             font-size: 16px; font-weight: 600; width: 100%;
-            cursor: pointer; margin-bottom: 20px;
+            cursor: pointer; margin-bottom: 10px;
         }
-        .features-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; text-align: left; }
+        .btn-secondary {
+            background-color: transparent; border: 1px solid var(--tg-theme-hint-color);
+            color: var(--tg-theme-text-color); border-radius: 10px; padding: 12px;
+            font-size: 16px; width: 100%; cursor: pointer;
+        }
+        
+        .features-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; text-align: left; margin-bottom: 20px;}
         .feature-card { background-color: var(--tg-theme-bg-color, #2c2c2e); padding: 15px; border-radius: 12px; }
         .fc-title { font-size: 13px; color: var(--tg-theme-hint-color, #8e8e93); margin-bottom: 5px; }
         .fc-value { font-size: 15px; font-weight: 500; }
-        .fc-locked { color: var(--tg-theme-hint-color, #8e8e93); font-style: italic; font-size: 13px;}
     </style>
 </head>
 <body>
+
+    <!-- Всплывающая плашка -->
+    <div id="toast">✅ ID скопирован</div>
+
+    <!-- Модальное окно добавления -->
+    <div id="add-modal">
+        <div class="modal-content">
+            <h3>Добавить профиль</h3>
+            <p>Чтобы бот сохранил профиль в базу данных, отправь ему ссылку или Steam ID прямо в чат.</p>
+            <button class="btn-main" onclick="tg.close()">Перейти в чат с ботом</button>
+            <button class="btn-secondary" onclick="closeModal()">Отмена</button>
+        </div>
+    </div>
 
     <!-- СПИСОК -->
     <div id="page-list">
@@ -92,15 +149,12 @@
             <input type="text" id="searchInput" placeholder="Поиск по нику или ID...">
         </div>
         <h2>Мои типы</h2>
-        <div class="list-box" id="profiles-list">
-            <!-- Динамический список появится здесь -->
-        </div>
+        <div class="list-box" id="profiles-list"></div>
     </div>
 
     <!-- ДОСЬЕ -->
     <div id="page-dossier">
         <div class="dossier-header">
-            <!-- onerror спасет, если аватарка сломалась -->
             <img id="dos-avatar" class="dossier-avatar" src="" onerror="this.src='https://store.cloudflare.steamstatic.com/public/shared/images/responsive/share_steam_logo.png'" alt="Avatar">
             <h1 id="dos-name" class="dossier-name">Name</h1>
             <p id="dos-id" class="dossier-id">ID</p>
@@ -114,8 +168,8 @@
                 <div class="fc-value">Скопировать 📋</div>
             </div>
             <div class="feature-card">
-                <div class="fc-title">VAC Бан</div>
-                <div class="fc-value">Чист 🟢</div>
+                <div class="fc-title">Текущий статус</div>
+                <div class="fc-value" id="dos-status">Проверка...</div>
             </div>
         </div>
     </div>
@@ -124,49 +178,49 @@
         let tg = window.Telegram.WebApp;
         tg.expand();
         let currentSteamId = "";
-
         const DEFAULT_IMG = "https://store.cloudflare.steamstatic.com/public/shared/images/responsive/share_steam_logo.png";
 
-        // === Читаем базу данных из ссылки ===
+        // Декодируем данные из Python
         let profiles = [];
         const urlParams = new URLSearchParams(window.location.search);
         const dataB64 = urlParams.get('data');
         
         if (dataB64) {
             try {
-                // Правильная расшифровка для поддержки русского языка
                 const binaryString = atob(decodeURIComponent(dataB64));
                 const bytes = new Uint8Array(binaryString.length);
                 for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
-                const decoder = new TextDecoder('utf-8');
-                profiles = JSON.parse(decoder.decode(bytes));
-            } catch(e) {
-                console.error("Ошибка расшифровки данных", e);
-            }
+                profiles = JSON.parse(new TextDecoder('utf-8').decode(bytes));
+            } catch(e) {}
         }
 
-        // === Отрисовка списка ===
+        // Отрисовка списка с проверкой онлайна
         function renderList(filterText = "") {
             const listBox = document.getElementById('profiles-list');
             
-            // Кнопка добавления всегда сверху
+            // Нормальная иконка плюсика
             listBox.innerHTML = `
-                <div class="list-item" onclick="addNew()">
-                    <div class="icon-add">⊕</div>
+                <div class="list-item" onclick="openModal()">
+                    <div class="icon-add">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    </div>
                     <div class="item-info"><div class="add-text">Добавить профиль</div></div>
                 </div>
             `;
 
-            // Фильтруем и выводим профили
             profiles.forEach(p => {
-                if (filterText && !p.nickname.toLowerCase().includes(filterText) && !p.steam_id.includes(filterText)) {
-                    return; // Пропускаем, если не подходит под поиск
-                }
+                if (filterText && !p.nickname.toLowerCase().includes(filterText) && !p.steam_id.includes(filterText)) return;
                 
-                // Спасательный круг для аватарки: атрибут onerror подменяет битую картинку на логотип Steam
+                // Если онлайн или в игре - рисуем зеленую точку
+                let isOnline = (p.status === 'online' || p.status === 'in-game');
+                let dotHtml = isOnline ? `<div class="online-dot"></div>` : '';
+
                 const html = `
-                <div class="list-item" onclick="openDossier('${p.steam_id}', '${p.nickname}', '${p.avatar}')">
-                    <img class="avatar" src="${p.avatar}" onerror="this.src='${DEFAULT_IMG}'" alt="Avatar">
+                <div class="list-item" onclick="openDossier('${p.steam_id}', '${p.nickname}', '${p.avatar}', '${p.status}')">
+                    <div class="avatar-container">
+                        <img class="avatar" src="${p.avatar}" onerror="this.src='${DEFAULT_IMG}'">
+                        ${dotHtml}
+                    </div>
                     <div class="item-info">
                         <div class="item-title">${p.nickname}</div>
                         <div class="item-subtitle">${p.steam_id}</div>
@@ -176,27 +230,42 @@
                 listBox.insertAdjacentHTML('beforeend', html);
             });
         }
-
-        // Запуск отрисовки
         renderList();
 
-        // Живой поиск
         document.getElementById('searchInput').addEventListener('input', function(e) {
             renderList(e.target.value.toLowerCase());
         });
 
-        // === Навигация и Досье ===
+        // Модальное окно
+        function openModal() { document.getElementById('add-modal').style.display = 'flex'; }
+        function closeModal() { document.getElementById('add-modal').style.display = 'none'; }
+
+        // Тост (приятная плашка)
+        function showToast(text) {
+            const toast = document.getElementById("toast");
+            toast.innerText = text;
+            toast.className = "show";
+            setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 1500);
+        }
+
+        // Навигация
         tg.BackButton.onClick(function() {
             document.getElementById('page-dossier').style.display = 'none';
             document.getElementById('page-list').style.display = 'block';
             tg.BackButton.hide();
         });
 
-        function openDossier(steamId, name, avatarUrl) {
+        function openDossier(steamId, name, avatarUrl, status) {
             currentSteamId = steamId;
             document.getElementById('dos-avatar').src = avatarUrl;
             document.getElementById('dos-name').innerText = name;
             document.getElementById('dos-id').innerText = steamId;
+            
+            // Расшифровка статуса для досье
+            let statusText = "Оффлайн 🔴";
+            if (status === 'online') statusText = "В сети 🟢";
+            if (status === 'in-game') statusText = "В игре 🎮";
+            document.getElementById('dos-status').innerText = statusText;
 
             document.getElementById('page-list').style.display = 'none';
             document.getElementById('page-dossier').style.display = 'block';
@@ -204,16 +273,9 @@
         }
 
         function openSteamLink() { tg.openLink("https://steamcommunity.com/profiles/" + currentSteamId); }
-        
         function copyId() {
             navigator.clipboard.writeText(currentSteamId);
-            tg.showAlert("ID " + currentSteamId + " скопирован!");
-        }
-
-        function addNew() {
-            tg.showConfirm("Добавить новый профиль? Отправь ссылку боту в чат!", function(confirmed) {
-                if (confirmed) tg.close();
-            });
+            showToast("✅ ID " + currentSteamId + " скопирован");
         }
     </script>
 </body>

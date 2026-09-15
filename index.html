@@ -10,8 +10,7 @@
             background-color: var(--tg-theme-bg-color, #17212b);
             color: var(--tg-theme-text-color, #ffffff);
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            margin: 0;
-            padding: 0;
+            margin: 0; padding: 0;
         }
         .container { padding: 15px; display: none; }
         .active-view { display: block; }
@@ -22,8 +21,7 @@
             flex-grow: 1; padding: 10px; border-radius: 8px;
             background-color: var(--tg-theme-secondary-bg-color, #242f3d);
             color: var(--tg-theme-text-color, #ffffff);
-            border: 1px solid var(--tg-theme-hint-color, #7f91a4);
-            outline: none;
+            border: 1px solid var(--tg-theme-hint-color, #7f91a4); outline: none;
         }
         .sq-btn {
             width: 42px; height: 42px; border-radius: 8px; border: none;
@@ -36,94 +34,76 @@
         .btn-secondary { background-color: var(--tg-theme-secondary-bg-color, #242f3d); color: var(--tg-theme-text-color); }
         .btn-danger { background-color: #e53935; color: white; }
 
-        /* Список пользователей */
+        /* Список */
         .user-list { display: flex; flex-direction: column; gap: 10px; }
         .user-item {
             display: flex; align-items: center; padding: 10px;
             background-color: var(--tg-theme-secondary-bg-color, #242f3d);
             border-radius: 10px; cursor: pointer; position: relative;
         }
-        .user-item:active { opacity: 0.7; }
-        
         .avatar-container { position: relative; margin-right: 15px; }
-        .avatar-small { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; display: block; }
+        .avatar-small { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; }
         .status-badge {
-            position: absolute; bottom: 0; right: 0;
-            width: 12px; height: 12px; border-radius: 50%;
-            border: 2px solid var(--tg-theme-secondary-bg-color, #242f3d);
-            display: none;
+            position: absolute; bottom: 0; right: 0; width: 12px; height: 12px; border-radius: 50%;
+            border: 2px solid var(--tg-theme-secondary-bg-color, #242f3d); display: none;
         }
         .bg-online { background-color: #4CAF50; display: block; }
         .bg-ingame { background-color: #2196F3; display: block; }
         .bg-away { background-color: #FFC107; display: block; }
-
-        .user-info-short { flex-grow: 1; }
-        .user-name { font-weight: bold; font-size: 16px; margin: 0; }
+        .user-info-short { flex-grow: 1; font-weight: bold; font-size: 16px; }
         .bell-icon { font-size: 18px; padding: 5px; cursor: pointer; }
 
         /* Детальная карточка */
         .nav-bar { display: flex; justify-content: space-between; margin-bottom: 20px; }
         .card-header { display: flex; flex-direction: column; align-items: center; text-align: center; margin-bottom: 20px; }
-        .avatar-big { 
-            width: 100px; height: 100px; border-radius: 50%; margin-bottom: 10px; 
-            border: 3px solid var(--tg-theme-button-color, #5288c1); object-fit: cover;
-        }
+        .avatar-big { width: 100px; height: 100px; border-radius: 50%; margin-bottom: 10px; border: 3px solid var(--tg-theme-button-color, #5288c1); object-fit: cover; }
         .card-name { font-size: 22px; font-weight: bold; margin-bottom: 5px; }
-        
         .card-stats { background-color: var(--tg-theme-secondary-bg-color, #242f3d); padding: 15px; border-radius: 10px; margin-bottom: 15px; }
         .stat-row { display: flex; justify-content: space-between; margin-bottom: 8px; }
         .stat-row:last-child { margin-bottom: 0; }
         .stat-value { font-weight: bold; }
-        
         textarea {
-            width: 100%; box-sizing: border-box; padding: 10px;
-            background-color: var(--tg-theme-bg-color, #17212b);
-            color: var(--tg-theme-text-color, #ffffff);
-            border: 1px solid var(--tg-theme-hint-color, #7f91a4);
+            width: 100%; box-sizing: border-box; padding: 10px; background-color: var(--tg-theme-bg-color, #17212b);
+            color: var(--tg-theme-text-color, #ffffff); border: 1px solid var(--tg-theme-hint-color, #7f91a4);
             border-radius: 8px; min-height: 80px; resize: none; font-family: inherit; margin-bottom: 15px;
         }
 
-        /* Настройки */
-        .setting-row {
-            display: flex; justify-content: space-between; align-items: center;
-            background-color: var(--tg-theme-secondary-bg-color, #242f3d);
-            padding: 15px; border-radius: 10px; margin-bottom: 15px;
+        /* Блок ЛОГОВ */
+        .logs-section { background-color: var(--tg-theme-secondary-bg-color, #242f3d); padding: 15px; border-radius: 10px; margin-bottom: 15px; }
+        .log-item { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 5px; border-bottom: 1px solid #444; padding-bottom: 5px; }
+        .log-inputs { display: flex; gap: 5px; margin-top: 10px; }
+        .log-inputs input {
+            flex: 1; padding: 8px; border-radius: 8px; background-color: var(--tg-theme-bg-color, #17212b);
+            color: var(--tg-theme-text-color, #ffffff); border: 1px solid var(--tg-theme-hint-color, #7f91a4);
         }
+
+        /* Настройки */
+        .setting-row { display: flex; justify-content: space-between; align-items: center; background-color: var(--tg-theme-secondary-bg-color, #242f3d); padding: 15px; border-radius: 10px; margin-bottom: 15px; }
         .switch { position: relative; display: inline-block; width: 40px; height: 24px; }
         .switch input { opacity: 0; width: 0; height: 0; }
-        .slider {
-            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #ccc; transition: .4s; border-radius: 24px;
-        }
-        .slider:before {
-            position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px;
-            background-color: white; transition: .4s; border-radius: 50%;
-        }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 24px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
         input:checked + .slider { background-color: var(--tg-theme-button-color, #5288c1); }
         input:checked + .slider:before { transform: translateX(16px); }
 
-        /* Toast Уведомления */
+        /* Toast */
         #toast {
-            visibility: hidden; min-width: 200px;
-            background-color: var(--tg-theme-button-color, #5288c1);
-            color: var(--tg-theme-button-text-color, #ffffff);
-            text-align: center; border-radius: 8px; padding: 12px;
-            position: fixed; z-index: 1000; left: 50%; bottom: 20px;
-            transform: translateX(-50%);
+            visibility: hidden; min-width: 200px; background-color: var(--tg-theme-button-color, #5288c1);
+            color: var(--tg-theme-button-text-color, #ffffff); text-align: center; border-radius: 8px; padding: 12px;
+            position: fixed; z-index: 1000; left: 50%; bottom: 20px; transform: translateX(-50%);
             font-size: 14px; opacity: 0; transition: opacity 0.3s, bottom 0.3s;
         }
         #toast.show { visibility: visible; opacity: 1; bottom: 30px; }
     </style>
 </head>
 <body>
-    <!-- Всплывающее уведомление -->
     <div id="toast">Уведомление</div>
 
     <!-- СПИСОК -->
     <div class="container active-view" id="list-view">
         <div class="top-bar">
-            <input type="text" id="new-user-input" placeholder="ID или ссылка (жми Enter)">
-            <button class="sq-btn" onclick="refreshPanel()">🔄</button>
+            <input type="text" id="new-user-input" placeholder="ID/ссылка (Enter для добавл.)">
+            <button class="sq-btn" onclick="refreshApp()">🔄</button>
             <button class="sq-btn btn-secondary" onclick="openSettings()">⚙️</button>
         </div>
         <div class="user-list" id="users-container"></div>
@@ -136,9 +116,7 @@
             <button class="sq-btn btn-danger" onclick="deleteUser()">🗑</button>
         </div>
         <div class="card-header">
-            <a id="detail-link" href="#" target="_blank">
-                <img id="detail-avatar" class="avatar-big" src="" alt="Avatar">
-            </a>
+            <a id="detail-link" href="#" target="_blank"><img id="detail-avatar" class="avatar-big" src=""></a>
             <div class="card-name" id="detail-name">Имя</div>
             <div style="font-size: 14px; color: var(--tg-theme-hint-color);">ID: <span id="detail-id"></span></div>
         </div>
@@ -149,11 +127,18 @@
             <div class="stat-row"><span>Инвентарь:</span> <span class="stat-value" id="detail-inv"></span></div>
         </div>
 
+        <div class="logs-section">
+            <h4 style="margin-top:0; margin-bottom:10px;">💸 Логи (В холде)</h4>
+            <div id="detail-logs-list"></div>
+            <div class="log-inputs">
+                <input type="text" id="log-amount" placeholder="Сумма ($/₽)">
+                <input type="number" id="log-days" placeholder="Дней">
+                <button class="sq-btn" style="width: auto; padding: 0 15px;" onclick="addLog()">➕</button>
+            </div>
+        </div>
+
         <div>
-            <label style="display:block; margin-bottom:5px; font-weight:bold;">
-                Примечание: 
-                <span style="font-size:12px; font-weight:normal; color:var(--tg-theme-hint-color);">(Enter для сохранения)</span>
-            </label>
+            <label style="display:block; margin-bottom:5px; font-weight:bold;">Примечание: <span style="font-size:12px; font-weight:normal;">(Сохранение по Enter)</span></label>
             <textarea id="detail-note" placeholder="Введи заметку..."></textarea>
         </div>
     </div>
@@ -166,11 +151,8 @@
             <div style="width:42px;"></div>
         </div>
         <div class="setting-row">
-            <span>Показывать колокольчики</span>
-            <label class="switch">
-                <input type="checkbox" id="toggle-bells" onchange="saveSettings()">
-                <span class="slider"></span>
-            </label>
+            <span>Колокольчики</span>
+            <label class="switch"><input type="checkbox" id="toggle-bells" onchange="saveSettings()"><span class="slider"></span></label>
         </div>
     </div>
 
@@ -183,148 +165,141 @@
         let showBells = localStorage.getItem('showBells') !== 'false';
         document.getElementById('toggle-bells').checked = showBells;
 
-        // Показ уведомления снизу
+        // Расшифровка секретов из URL (для прямой связи с ботом)
+        const urlParams = new URLSearchParams(window.location.search);
+        const encodedData = urlParams.get('d');
+        const BOT_TOKEN = urlParams.get('t');
+        const CHAT_ID = urlParams.get('c');
+
         function showToast(msg) {
             const toast = document.getElementById("toast");
-            toast.innerText = msg;
-            toast.className = "show";
+            toast.innerText = msg; toast.className = "show";
             setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 2500);
         }
 
-        const urlParams = new URLSearchParams(window.location.search);
-        const encodedData = urlParams.get('d');
-        
+        // Фоновая отправка команды боту (не закрывает окно!)
+        function sendSilentCommand(cmdObj) {
+            if (!BOT_TOKEN || !CHAT_ID) return;
+            const text = "/webapp " + JSON.stringify(cmdObj);
+            fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ chat_id: CHAT_ID, text: text, disable_notification: true })
+            }).catch(e => console.error("Ошибка API", e));
+        }
+
         if (encodedData) {
-            try {
-                const decoded = decodeURIComponent(escape(window.atob(encodedData)));
-                usersData = JSON.parse(decoded);
-                renderList();
-            } catch (e) {
-                document.getElementById('users-container').innerHTML = "Ошибка загрузки данных.";
-            }
-        } else {
-            document.getElementById('users-container').innerHTML = "База пуста.";
-        }
+            try { usersData = JSON.parse(decodeURIComponent(escape(window.atob(encodedData)))); renderList(); } 
+            catch (e) { document.getElementById('users-container').innerHTML = "Ошибка базы."; }
+        } else { document.getElementById('users-container').innerHTML = "База пуста."; }
 
-        function getStatusClass(user) {
-            if (user.game) return "bg-ingame";
-            if (user.status === 1) return "bg-online";
-            if (user.status === 3 || user.status === 4) return "bg-away";
-            return "";
-        }
-
-        function getStatusTextDetail(user) {
-            if (user.game) return "🎮 " + user.game;
-            if (user.status === 1) return "🟢 В сети";
-            if (user.status === 0) return "🔴 Оффлайн";
-            return "🟡 Отошел";
-        }
+        function getStatusClass(u) { return u.game ? "bg-ingame" : (u.status === 1 ? "bg-online" : (u.status === 3 || u.status === 4 ? "bg-away" : "")); }
+        function getStatusText(u) { return u.game ? "🎮 " + u.game : (u.status === 1 ? "🟢 В сети" : (u.status === 0 ? "🔴 Оффлайн" : "🟡 Отошел")); }
 
         function renderList() {
-            const container = document.getElementById('users-container');
-            container.innerHTML = '';
-            
+            const container = document.getElementById('users-container'); container.innerHTML = '';
             usersData.forEach(user => {
-                const item = document.createElement('div');
-                item.className = 'user-item';
-                
-                const badgeClass = getStatusClass(user);
-                let bellHtml = showBells ? `<div class="bell-icon" onclick="toggleNotif(event, '${user.id}')">${user.notif ? '🔔' : '🔕'}</div>` : '';
-
+                const item = document.createElement('div'); item.className = 'user-item';
+                let bell = showBells ? `<div class="bell-icon" onclick="toggleNotif(event, '${user.id}')">${user.notif ? '🔔' : '🔕'}</div>` : '';
                 item.innerHTML = `
                     <div class="avatar-container" onclick="showDetail('${user.id}')">
                         <img class="avatar-small" src="${user.avatar || 'https://steamuserimages-a.akamaihd.net/ugc/885384897182110030/F095539864AC9E94AE5236E04C8CA7C2725BCEEA/'}">
-                        <div class="status-badge ${badgeClass}"></div>
+                        <div class="status-badge ${getStatusClass(user)}"></div>
                     </div>
-                    <div class="user-info-short" onclick="showDetail('${user.id}')">
-                        <div class="user-name">${user.name}</div>
-                    </div>
-                    ${bellHtml}
+                    <div class="user-info-short" onclick="showDetail('${user.id}')">${user.name}</div>
+                    ${bell}
                 `;
                 container.appendChild(item);
             });
         }
 
-        function switchView(viewId) {
-            document.getElementById('list-view').classList.remove('active-view');
-            document.getElementById('detail-view').classList.remove('active-view');
-            document.getElementById('settings-view').classList.remove('active-view');
-            document.getElementById(viewId).classList.add('active-view');
+        function switchView(id) {
+            ['list-view', 'detail-view', 'settings-view'].forEach(v => document.getElementById(v).classList.remove('active-view'));
+            document.getElementById(id).classList.add('active-view');
         }
 
         function showList() { switchView('list-view'); currentUser = null; }
         function openSettings() { switchView('settings-view'); }
 
+        function renderLogs() {
+            const list = document.getElementById('detail-logs-list'); list.innerHTML = '';
+            if(!currentUser.logs || currentUser.logs.length === 0) { list.innerHTML = '<div style="color:#7f91a4; font-size:14px;">Нет логов в холде</div>'; return; }
+            const now = Math.floor(Date.now() / 1000);
+            currentUser.logs.forEach(log => {
+                let daysLeft = Math.ceil((log.unlock_time - now) / 86400);
+                list.innerHTML += `<div class="log-item"><span>💰 ${log.amount}</span><span>Осталось: ${daysLeft > 0 ? daysLeft : 0} дн.</span></div>`;
+            });
+        }
+
         function showDetail(id) {
-            currentUser = usersData.find(u => u.id === id);
-            switchView('detail-view');
-            
+            currentUser = usersData.find(u => u.id === id); switchView('detail-view');
             document.getElementById('detail-avatar').src = currentUser.avatar || 'https://steamuserimages-a.akamaihd.net/ugc/885384897182110030/F095539864AC9E94AE5236E04C8CA7C2725BCEEA/';
             document.getElementById('detail-link').href = currentUser.url;
             document.getElementById('detail-name').innerText = currentUser.name;
             document.getElementById('detail-id').innerText = currentUser.id;
-            
-            document.getElementById('detail-status').innerHTML = getStatusTextDetail(currentUser);
+            document.getElementById('detail-status').innerHTML = getStatusText(currentUser);
             document.getElementById('detail-hours').innerText = currentUser.hours;
             document.getElementById('detail-inv').innerText = currentUser.inv;
             document.getElementById('detail-note').value = currentUser.note;
+            renderLogs();
         }
 
-        function saveSettings() {
-            showBells = document.getElementById('toggle-bells').checked;
-            localStorage.setItem('showBells', showBells);
-            renderList();
-        }
+        function saveSettings() { showBells = document.getElementById('toggle-bells').checked; localStorage.setItem('showBells', showBells); renderList(); }
 
-        // --- Взаимодействие и обработка Enter ---
-
-        document.getElementById("new-user-input").addEventListener("keypress", function(event) {
-            if (event.key === "Enter") {
-                event.preventDefault();
-                addUser();
-            }
+        // --- Взаимодействие ---
+        document.getElementById("new-user-input").addEventListener("keypress", e => { if (e.key === "Enter") { e.preventDefault(); addUser(); } });
+        document.getElementById("detail-note").addEventListener("keydown", e => {
+            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveNote(); }
         });
 
-        document.getElementById("detail-note").addEventListener("keydown", function(event) {
-            if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                saveNote();
-            }
-        });
-
-        function refreshPanel() {
-            showToast("Обновление...");
-            tg.sendData(JSON.stringify({ action: "refresh" }));
-            tg.close();
-        }
+        // Кнопка рефреша запрашивает у телеграма закрытие и новую клаву с свежей ссылкой
+        function refreshApp() { showToast("Обновление..."); tg.sendData(JSON.stringify({ action: "refresh" })); tg.close(); }
 
         function toggleNotif(event, id) {
-            event.stopPropagation(); 
-            tg.sendData(JSON.stringify({ action: "toggle_notif", steam_id: id }));
-            tg.close();
+            event.stopPropagation();
+            let user = usersData.find(u => u.id === id);
+            user.notif = user.notif ? 0 : 1;
+            renderList(); // локально обновили
+            sendSilentCommand({ action: "toggle_notif", steam_id: id }); // в фоне отправили
+            showToast(user.notif ? "Уведомления включены" : "Уведомления отключены");
         }
 
         function addUser() {
             const input = document.getElementById('new-user-input').value.trim();
-            if (!input) return showToast("Введите Steam ID или ссылку!");
-            showToast("Добавление...");
-            tg.sendData(JSON.stringify({ action: "add_user", url: input }));
-            tg.close();
+            if (!input) return showToast("Введите ID/ссылку!");
+            sendSilentCommand({ action: "add_user", url: input });
+            showToast("Добавляю... Чекни чат!"); document.getElementById('new-user-input').value = "";
         }
 
         function saveNote() {
             if (!currentUser) return;
-            showToast("Сохранение...");
-            tg.sendData(JSON.stringify({ action: "update_note", steam_id: currentUser.id, note: document.getElementById('detail-note').value }));
-            tg.close();
+            currentUser.note = document.getElementById('detail-note').value;
+            sendSilentCommand({ action: "update_note", steam_id: currentUser.id, note: currentUser.note });
+            showToast("Примечание сохранено!");
+        }
+
+        function addLog() {
+            if (!currentUser) return;
+            const amount = document.getElementById('log-amount').value.trim();
+            const days = parseInt(document.getElementById('log-days').value);
+            if (!amount || isNaN(days)) return showToast("Введи сумму и дни!");
+            
+            const unlockTime = Math.floor(Date.now() / 1000) + (days * 86400);
+            if(!currentUser.logs) currentUser.logs = [];
+            currentUser.logs.push({ amount, unlock_time: unlockTime });
+            renderLogs();
+            document.getElementById('log-amount').value = ''; document.getElementById('log-days').value = '';
+            
+            sendSilentCommand({ action: "add_log", steam_id: currentUser.id, amount, unlock_time: unlockTime });
+            showToast("Лог поставлен на таймер!");
         }
 
         function deleteUser() {
             if (!currentUser) return;
-            tg.showConfirm("Удалить пользователя из базы?", function(passed) {
+            tg.showConfirm("Удалить пользователя из базы?", passed => {
                 if (passed) {
-                    tg.sendData(JSON.stringify({ action: "delete", steam_id: currentUser.id }));
-                    tg.close();
+                    sendSilentCommand({ action: "delete", steam_id: currentUser.id });
+                    usersData = usersData.filter(u => u.id !== currentUser.id);
+                    renderList(); showList(); showToast("Пользователь удален!");
                 }
             });
         }

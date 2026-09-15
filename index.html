@@ -19,17 +19,23 @@
         .status-badge { position: absolute; bottom: 0; right: 0; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--tg-theme-secondary-bg-color, #242f3d); display: none; }
         .bg-online { background-color: #4CAF50; display: block; } .bg-ingame { background-color: #2196F3; display: block; } .bg-away { background-color: #FFC107; display: block; }
         .user-info-short { flex-grow: 1; font-weight: bold; font-size: 16px; } .bell-icon { font-size: 18px; padding: 5px; cursor: pointer; }
+        
         .nav-bar { display: flex; justify-content: space-between; margin-bottom: 20px; }
         .card-header { display: flex; flex-direction: column; align-items: center; text-align: center; margin-bottom: 20px; }
         .avatar-big { width: 100px; height: 100px; border-radius: 50%; margin-bottom: 10px; border: 3px solid var(--tg-theme-button-color, #5288c1); object-fit: cover; }
         .card-name { font-size: 22px; font-weight: bold; margin-bottom: 5px; }
         .card-stats { background-color: var(--tg-theme-secondary-bg-color, #242f3d); padding: 15px; border-radius: 10px; margin-bottom: 15px; }
-        .stat-row { display: flex; justify-content: space-between; margin-bottom: 8px; } .stat-row:last-child { margin-bottom: 0; } .stat-value { font-weight: bold; }
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 8px; align-items: center;} .stat-row:last-child { margin-bottom: 0; } .stat-value { font-weight: bold; }
+        
+        select { background-color: var(--tg-theme-bg-color, #17212b); color: var(--tg-theme-text-color, #ffffff); border: 1px solid var(--tg-theme-hint-color, #7f91a4); border-radius: 5px; padding: 5px; outline: none; font-weight: bold;}
+        .tradeban-input { display: none; width: 60px; padding: 5px; border-radius: 5px; background-color: var(--tg-theme-bg-color, #17212b); color: white; border: 1px solid var(--tg-theme-hint-color, #7f91a4); margin-left: 5px; outline: none; text-align: center;}
+
         textarea { width: 100%; box-sizing: border-box; padding: 10px; background-color: var(--tg-theme-bg-color, #17212b); color: var(--tg-theme-text-color, #ffffff); border: 1px solid var(--tg-theme-hint-color, #7f91a4); border-radius: 8px; min-height: 80px; resize: none; font-family: inherit; margin-bottom: 15px; }
         .logs-section { background-color: var(--tg-theme-secondary-bg-color, #242f3d); padding: 15px; border-radius: 10px; margin-bottom: 15px; }
         .log-item { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 5px; border-bottom: 1px solid #444; padding-bottom: 5px; }
         .log-inputs { display: flex; gap: 5px; margin-top: 10px; }
         .log-inputs input { flex: 1; padding: 8px; border-radius: 8px; background-color: var(--tg-theme-bg-color, #17212b); color: var(--tg-theme-text-color, #ffffff); border: 1px solid var(--tg-theme-hint-color, #7f91a4); outline: none;}
+        
         .setting-row { display: flex; justify-content: space-between; align-items: center; background-color: var(--tg-theme-secondary-bg-color, #242f3d); padding: 15px; border-radius: 10px; margin-bottom: 15px; }
         .switch { position: relative; display: inline-block; width: 40px; height: 24px; } .switch input { opacity: 0; width: 0; height: 0; }
         .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 24px; }
@@ -42,15 +48,17 @@
 <body>
     <div id="toast">Уведомление</div>
 
+    <!-- СПИСОК -->
     <div class="container active-view" id="list-view">
         <div class="top-bar">
-            <input type="text" id="new-user-input" placeholder="ID/ссылка (Enter для добавл.)">
-            <button class="sq-btn" onclick="fetchLiveDB(true)">🔄</button>
+            <input type="text" id="new-user-input" placeholder="Поиск или Steam ссылка (Enter)">
+            <button class="sq-btn" onclick="manualRefresh()">🔄</button>
             <button class="sq-btn btn-secondary" onclick="openSettings()">⚙️</button>
         </div>
         <div class="user-list" id="users-container">Ожидание данных...</div>
     </div>
 
+    <!-- КАРТОЧКА -->
     <div class="container" id="detail-view">
         <div class="nav-bar">
             <button class="sq-btn btn-secondary" onclick="showList()">◀</button>
@@ -61,11 +69,26 @@
             <div class="card-name" id="detail-name">Имя</div>
             <div style="font-size: 14px; color: var(--tg-theme-hint-color);">ID: <span id="detail-id"></span></div>
         </div>
+        
         <div class="card-stats">
             <div class="stat-row"><span>Статус:</span> <span class="stat-value" id="detail-status"></span></div>
             <div class="stat-row"><span>Часов в CS:</span> <span class="stat-value" id="detail-hours"></span></div>
             <div class="stat-row"><span>Инвентарь:</span> <span class="stat-value" id="detail-inv"></span></div>
+            <div class="stat-row">
+                <span>Досье:</span>
+                <div style="display:flex; align-items:center;">
+                    <select id="tradeban-select" onchange="handleTradebanChange()">
+                        <option value="none">Обычный</option>
+                        <option value="ban">Трейдбан</option>
+                        <option value="ready">Можно снимать</option>
+                        <option value="vac">Снят + ВАК</option>
+                        <option value="work">Снят + Ведение</option>
+                    </select>
+                    <input type="number" id="tradeban-days" class="tradeban-input" placeholder="Дней">
+                </div>
+            </div>
         </div>
+
         <div class="logs-section">
             <h4 style="margin-top:0; margin-bottom:10px;">💸 Логи (В холде)</h4>
             <div id="detail-logs-list"></div>
@@ -75,12 +98,14 @@
                 <button class="sq-btn" style="width: auto; padding: 0 15px;" onclick="addLog()">➕</button>
             </div>
         </div>
+
         <div>
             <label style="display:block; margin-bottom:5px; font-weight:bold;">Примечание: <span style="font-size:12px; font-weight:normal;">(Enter для сохр.)</span></label>
             <textarea id="detail-note" placeholder="Введи заметку..."></textarea>
         </div>
     </div>
 
+    <!-- НАСТРОЙКИ -->
     <div class="container" id="settings-view">
         <div class="nav-bar">
             <button class="sq-btn btn-secondary" onclick="showList()">◀</button>
@@ -102,7 +127,6 @@
         let showBells = localStorage.getItem('showBells') !== 'false';
         document.getElementById('toggle-bells').checked = showBells;
 
-        // Связь с базой данных на Telegraph
         const urlParams = new URLSearchParams(window.location.search);
         const TOKEN = urlParams.get('t');
         const DB_PATH = urlParams.get('d');
@@ -114,7 +138,6 @@
             setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 2500);
         }
 
-        // Читаем базу юзеров
         async function fetchLiveDB(manual = false) {
             if (!DB_PATH) return;
             try {
@@ -126,19 +149,27 @@
                     for (let c of nodes[0].children) if (typeof c === 'string') jsonStr += c;
                 }
                 usersData = JSON.parse(jsonStr || "[]");
-                renderList();
-                if (currentUser) showDetail(currentUser.id, true);
+                
+                // Применяем фильтр поиска, если мы в списке
+                if(document.getElementById('list-view').classList.contains('active-view')) {
+                    filterList(); 
+                } else if (currentUser) {
+                    showDetail(currentUser.id, true);
+                }
                 if (manual) showToast("Данные обновлены ✅");
             } catch(e) {}
         }
 
-        // Авто-обновление каждые 3 секунды!
         setInterval(fetchLiveDB, 3000);
         fetchLiveDB();
 
-        // Отправка команд боту без закрытия окна!
+        function manualRefresh() {
+            document.getElementById('new-user-input').value = ""; // очищаем поиск
+            fetchLiveDB(true);
+        }
+
         async function sendSilentCommand(cmdObj) {
-            showToast("Обработка...");
+            showToast("Сохранение...");
             try {
                 const r = await fetch(`https://api.telegra.ph/getPage/${CMD_PATH}?return_content=true&_=${Date.now()}`);
                 const data = await r.json();
@@ -162,38 +193,116 @@
                 formData.append("content", JSON.stringify([{"tag":"p", "children": chunks.length ? chunks : ["[]"]}]));
                 
                 await fetch(`https://api.telegra.ph/editPage/${CMD_PATH}`, { method: "POST", body: formData });
-                
-                // Ускоренное обновление интерфейса после отправки
                 setTimeout(fetchLiveDB, 1500);
-                setTimeout(fetchLiveDB, 3500);
             } catch(e) { showToast("Ошибка сети"); }
         }
 
         function getStatusClass(u) { return u.game ? "bg-ingame" : (u.status === 1 ? "bg-online" : (u.status === 3 || u.status === 4 ? "bg-away" : "")); }
         function getStatusText(u) { return u.game ? "🎮 " + u.game : (u.status === 1 ? "🟢 В сети" : (u.status === 0 ? "🔴 Оффлайн" : "🟡 Отошел")); }
 
-        function renderList() {
+        function renderList(filteredData = usersData) {
             const container = document.getElementById('users-container'); container.innerHTML = '';
-            usersData.forEach(user => {
+            filteredData.forEach(user => {
                 const item = document.createElement('div'); item.className = 'user-item';
                 let bell = showBells ? `<div class="bell-icon" onclick="toggleNotif(event, '${user.id}')">${user.notif ? '🔔' : '🔕'}</div>` : '';
+                
+                // Значок трейдбана рядом с именем
+                let tbIcon = "";
+                if(user.tb_status === "ban") tbIcon = " ⏳";
+                if(user.tb_status === "ready") tbIcon = " ✅";
+                if(user.tb_status === "vac") tbIcon = " 💀";
+                if(user.tb_status === "work") tbIcon = " 💼";
+
                 item.innerHTML = `
                     <div class="avatar-container" onclick="showDetail('${user.id}')">
                         <img class="avatar-small" src="${user.avatar || 'https://steamuserimages-a.akamaihd.net/ugc/885384897182110030/F095539864AC9E94AE5236E04C8CA7C2725BCEEA/'}">
                         <div class="status-badge ${getStatusClass(user)}"></div>
                     </div>
-                    <div class="user-info-short" onclick="showDetail('${user.id}')">${user.name}</div>
+                    <div class="user-info-short" onclick="showDetail('${user.id}')">${user.name}${tbIcon}</div>
                     ${bell}
                 `;
                 container.appendChild(item);
             });
         }
 
+        // --- ПОИСК И ДОБАВЛЕНИЕ ---
+        function filterList() {
+            const query = document.getElementById('new-user-input').value.trim().toLowerCase();
+            if (!query) {
+                renderList(usersData);
+                return;
+            }
+            const filtered = usersData.filter(u => u.name.toLowerCase().includes(query) || u.id.includes(query));
+            renderList(filtered);
+        }
+
+        document.getElementById("new-user-input").addEventListener("input", filterList);
+        
+        document.getElementById("new-user-input").addEventListener("keydown", e => { 
+            if (e.key === "Enter") {
+                const input = document.getElementById('new-user-input').value.trim();
+                if (!input) return;
+                
+                // Если это не похоже на ID или ссылку - выдаем ошибку (Защита от "слон")
+                const isSteam = input.includes("steamcommunity.com") || /^\d{17}$/.test(input);
+                if (!isSteam) {
+                    showToast("❌ Введи Steam ссылку или ID64 для добавления!");
+                    return;
+                }
+
+                sendSilentCommand({ action: "add_user", url: input });
+                showToast("Добавляю... Панель закроется."); 
+                document.getElementById('new-user-input').value = "";
+                setTimeout(() => tg.close(), 1000);
+            }
+        });
+
+        // --- ДОСЬЕ И ТРЕЙДБАН ---
+        function handleTradebanChange() {
+            const val = document.getElementById('tradeban-select').value;
+            const daysInput = document.getElementById('tradeban-days');
+            
+            if (val === 'ban') {
+                daysInput.style.display = 'block';
+                daysInput.focus();
+            } else {
+                daysInput.style.display = 'none';
+                daysInput.value = '';
+                saveTradeban(val, 0);
+            }
+        }
+
+        document.getElementById("tradeban-days").addEventListener("keydown", e => { 
+            if (e.key === "Enter") {
+                const days = parseInt(document.getElementById('tradeban-days').value);
+                if(isNaN(days) || days <= 0) return showToast("Введи количество дней!");
+                saveTradeban('ban', days);
+            }
+        });
+
+        function saveTradeban(status, days) {
+            if (!currentUser) return;
+            const unlockTime = days > 0 ? Math.floor(Date.now() / 1000) + (days * 86400) : 0;
+            
+            // Локальное обновление
+            currentUser.tb_status = status;
+            currentUser.tb_time = unlockTime;
+            
+            sendSilentCommand({ 
+                action: "update_tradeban", 
+                steam_id: currentUser.id, 
+                tb_status: status, 
+                tb_time: unlockTime 
+            });
+            showToast("Досье обновлено ✅");
+        }
+
+
         function switchView(id) {
             ['list-view', 'detail-view', 'settings-view'].forEach(v => document.getElementById(v).classList.remove('active-view'));
             document.getElementById(id).classList.add('active-view');
         }
-        function showList() { switchView('list-view'); currentUser = null; }
+        function showList() { switchView('list-view'); currentUser = null; document.getElementById('new-user-input').value = ""; filterList();}
         function openSettings() { switchView('settings-view'); }
 
         function renderLogs() {
@@ -218,13 +327,27 @@
             document.getElementById('detail-status').innerHTML = getStatusText(currentUser);
             document.getElementById('detail-hours').innerText = currentUser.hours;
             document.getElementById('detail-inv').innerText = currentUser.inv;
+            
+            // Настройка дропдауна
+            const sel = document.getElementById('tradeban-select');
+            const inp = document.getElementById('tradeban-days');
+            sel.value = currentUser.tb_status || "none";
+            
+            if (sel.value === "ban" && currentUser.tb_time) {
+                inp.style.display = 'block';
+                const daysLeft = Math.ceil((currentUser.tb_time - Math.floor(Date.now() / 1000)) / 86400);
+                if(!silentUpdate) inp.value = daysLeft > 0 ? daysLeft : 0;
+            } else {
+                inp.style.display = 'none';
+                if(!silentUpdate) inp.value = "";
+            }
+
             if(!silentUpdate) document.getElementById('detail-note').value = currentUser.note;
             renderLogs();
         }
 
-        function saveSettings() { showBells = document.getElementById('toggle-bells').checked; localStorage.setItem('showBells', showBells); renderList(); }
+        function saveSettings() { showBells = document.getElementById('toggle-bells').checked; localStorage.setItem('showBells', showBells); filterList(); }
 
-        document.getElementById("new-user-input").addEventListener("keydown", e => { if (e.key === "Enter") addUser(); });
         document.getElementById("detail-note").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveNote(); } });
         document.getElementById("log-amount").addEventListener("keydown", e => { if (e.key === "Enter") addLog(); });
         document.getElementById("log-days").addEventListener("keydown", e => { if (e.key === "Enter") addLog(); });
@@ -232,15 +355,8 @@
         function toggleNotif(event, id) {
             event.stopPropagation();
             let user = usersData.find(u => u.id === id); user.notif = user.notif ? 0 : 1;
-            renderList(); sendSilentCommand({ action: "toggle_notif", steam_id: id });
+            filterList(); sendSilentCommand({ action: "toggle_notif", steam_id: id });
             showToast(user.notif ? "Уведомления включены" : "Уведомления отключены");
-        }
-
-        function addUser() {
-            const input = document.getElementById('new-user-input').value.trim();
-            if (!input) return showToast("Введите ID/ссылку!");
-            sendSilentCommand({ action: "add_user", url: input });
-            showToast("Добавляю в базу... Ожидайте."); document.getElementById('new-user-input').value = "";
         }
 
         function saveNote() {
@@ -272,7 +388,7 @@
                 if (passed) {
                     sendSilentCommand({ action: "delete", steam_id: currentUser.id });
                     usersData = usersData.filter(u => u.id !== currentUser.id);
-                    renderList(); showList(); showToast("Пользователь удален!");
+                    filterList(); showList(); showToast("Пользователь удален!");
                 }
             });
         }

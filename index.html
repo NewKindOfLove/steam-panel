@@ -5,8 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Steam Panel</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <!-- Библиотека для распаковки сжатых данных (zlib) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
     <style>
         body { background-color: var(--tg-theme-bg-color, #17212b); color: var(--tg-theme-text-color, #ffffff); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; }
         .container { padding: 15px; display: none; } .active-view { display: block; }
@@ -47,7 +45,7 @@
     <div class="container active-view" id="list-view">
         <div class="top-bar">
             <input type="text" id="new-user-input" placeholder="ID/ссылка (Enter для добавл.)">
-            <button class="sq-btn" onclick="refreshApp()">🔄</button>
+            <button class="sq-btn" onclick="fetchLiveDB(true)">🔄</button>
             <button class="sq-btn btn-secondary" onclick="openSettings()">⚙️</button>
         </div>
         <div class="user-list" id="users-container">Ожидание данных...</div>
@@ -104,18 +102,11 @@
         let showBells = localStorage.getItem('showBells') !== 'false';
         document.getElementById('toggle-bells').checked = showBells;
 
+        // Связь с базой данных на Telegraph
         const urlParams = new URLSearchParams(window.location.search);
-        const ZDATA = urlParams.get('z');
-        const AUTH = urlParams.get('a');
-        let BOT_TOKEN = null;
-        let CHAT_ID = null;
-
-        if (AUTH) {
-            try {
-                const authObj = JSON.parse(decodeURIComponent(escape(window.atob(AUTH))));
-                BOT_TOKEN = authObj.t; CHAT_ID = authObj.c;
-            } catch (e) {}
-        }
+        const TOKEN = urlParams.get('t');
+        const DB_PATH = urlParams.get('d');
+        const CMD_PATH = urlParams.get('c');
 
         function showToast(msg) {
             const toast = document.getElementById("toast");
@@ -123,28 +114,59 @@
             setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 2500);
         }
 
-        // ОТПРАВКА С ЗАЩИТОЙ ОТ ПРЕВЬЮ
-        function sendSilentCommand(cmdObj) {
-            if (!BOT_TOKEN || !CHAT_ID) return showToast("Нет связи с ботом");
-            const text = "/webapp " + JSON.stringify(cmdObj);
-            fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ chat_id: CHAT_ID, text: text, disable_notification: true, link_preview_options: { is_disabled: true } })
-            }).catch(e => console.error(e));
+        // Читаем базу юзеров
+        async function fetchLiveDB(manual = false) {
+            if (!DB_PATH) return;
+            try {
+                const r = await fetch(`https://api.telegra.ph/getPage/${DB_PATH}?return_content=true&_=${Date.now()}`);
+                const data = await r.json();
+                let jsonStr = "";
+                const nodes = data.result.content;
+                if (nodes && nodes.length > 0 && nodes[0].children) {
+                    for (let c of nodes[0].children) if (typeof c === 'string') jsonStr += c;
+                }
+                usersData = JSON.parse(jsonStr || "[]");
+                renderList();
+                if (currentUser) showDetail(currentUser.id, true);
+                if (manual) showToast("Данные обновлены ✅");
+            } catch(e) {}
         }
 
-        // РАСПАКОВКА ДАННЫХ ИЗ URL
-        if (ZDATA) {
+        // Авто-обновление каждые 3 секунды!
+        setInterval(fetchLiveDB, 3000);
+        fetchLiveDB();
+
+        // Отправка команд боту без закрытия окна!
+        async function sendSilentCommand(cmdObj) {
+            showToast("Обработка...");
             try {
-                const binaryString = window.atob(ZDATA);
-                const bytes = new Uint8Array(binaryString.length);
-                for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
-                const decompressed = pako.inflate(bytes, { to: 'string' });
-                usersData = JSON.parse(decompressed);
-                renderList();
-            } catch(e) { document.getElementById('users-container').innerHTML = "Ошибка чтения базы."; }
-        } else {
-            document.getElementById('users-container').innerHTML = "База пуста.";
+                const r = await fetch(`https://api.telegra.ph/getPage/${CMD_PATH}?return_content=true&_=${Date.now()}`);
+                const data = await r.json();
+                let jsonStr = "";
+                const nodes = data.result.content;
+                if (nodes && nodes.length > 0 && nodes[0].children) {
+                    for (let c of nodes[0].children) if (typeof c === 'string') jsonStr += c;
+                }
+                let cmds = [];
+                try { cmds = JSON.parse(jsonStr || "[]"); } catch(e){}
+                
+                cmds.push(cmdObj);
+                
+                const newStr = JSON.stringify(cmds);
+                let chunks = [];
+                for(let i=0; i<newStr.length; i+=4000) chunks.push(newStr.slice(i, i+4000));
+                
+                const formData = new FormData();
+                formData.append("access_token", TOKEN);
+                formData.append("title", "CMD");
+                formData.append("content", JSON.stringify([{"tag":"p", "children": chunks.length ? chunks : ["[]"]}]));
+                
+                await fetch(`https://api.telegra.ph/editPage/${CMD_PATH}`, { method: "POST", body: formData });
+                
+                // Ускоренное обновление интерфейса после отправки
+                setTimeout(fetchLiveDB, 1500);
+                setTimeout(fetchLiveDB, 3500);
+            } catch(e) { showToast("Ошибка сети"); }
         }
 
         function getStatusClass(u) { return u.game ? "bg-ingame" : (u.status === 1 ? "bg-online" : (u.status === 3 || u.status === 4 ? "bg-away" : "")); }
@@ -184,10 +206,10 @@
             });
         }
 
-        function showDetail(id) {
+        function showDetail(id, silentUpdate = false) {
             currentUser = usersData.find(u => u.id === id); 
             if(!currentUser) return showList();
-            switchView('detail-view');
+            if(!silentUpdate) switchView('detail-view');
             
             document.getElementById('detail-avatar').src = currentUser.avatar || 'https://steamuserimages-a.akamaihd.net/ugc/885384897182110030/F095539864AC9E94AE5236E04C8CA7C2725BCEEA/';
             document.getElementById('detail-link').href = currentUser.url;
@@ -196,7 +218,7 @@
             document.getElementById('detail-status').innerHTML = getStatusText(currentUser);
             document.getElementById('detail-hours').innerText = currentUser.hours;
             document.getElementById('detail-inv').innerText = currentUser.inv;
-            document.getElementById('detail-note').value = currentUser.note;
+            if(!silentUpdate) document.getElementById('detail-note').value = currentUser.note;
             renderLogs();
         }
 
@@ -218,9 +240,7 @@
             const input = document.getElementById('new-user-input').value.trim();
             if (!input) return showToast("Введите ID/ссылку!");
             sendSilentCommand({ action: "add_user", url: input });
-            showToast("Добавляю... Панель закроется для обновления."); 
-            document.getElementById('new-user-input').value = "";
-            setTimeout(() => tg.close(), 1000);
+            showToast("Добавляю в базу... Ожидайте."); document.getElementById('new-user-input').value = "";
         }
 
         function saveNote() {
@@ -256,8 +276,6 @@
                 }
             });
         }
-
-        function refreshApp() { tg.close(); }
     </script>
 </body>
 </html>

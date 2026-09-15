@@ -138,12 +138,11 @@
             }).catch(e => console.error(e));
         }
 
-        // ПОДКЛЮЧЕНО НОВОЕ ОБЛАКО JSONBLOB
         async function fetchLiveDB(isManualRefresh = false) {
             if (!BUCKET) return document.getElementById('users-container').innerHTML = "Ожидание данных...";
             if (isManualRefresh) showToast("Обновление...");
             try {
-                const response = await fetch(`https://jsonblob.com/api/jsonBlob/${BUCKET}?t=${Date.now()}`);
+                const response = await fetch(`https://kvdb.io/${BUCKET}/db?t=${Date.now()}`);
                 if (response.ok) {
                     usersData = await response.json();
                     renderList();
@@ -169,7 +168,8 @@
                         <img class="avatar-small" src="${user.avatar || 'https://steamuserimages-a.akamaihd.net/ugc/885384897182110030/F095539864AC9E94AE5236E04C8CA7C2725BCEEA/'}">
                         <div class="status-badge ${getStatusClass(user)}"></div>
                     </div>
-                    <div class="user-info-short" onclick="showDetail('${user.id}')">${user.name}</div>${bell}
+                    <div class="user-info-short" onclick="showDetail('${user.id}')">${user.name}</div>
+                    ${bell}
                 `;
                 container.appendChild(item);
             });

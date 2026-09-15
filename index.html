@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Steam Panel</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Библиотека для распаковки сжатых данных (zlib) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
     <style>
         body { background-color: var(--tg-theme-bg-color, #17212b); color: var(--tg-theme-text-color, #ffffff); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; }
         .container { padding: 15px; display: none; } .active-view { display: block; }
@@ -42,17 +44,15 @@
 <body>
     <div id="toast">Уведомление</div>
 
-    <!-- СПИСОК -->
     <div class="container active-view" id="list-view">
         <div class="top-bar">
             <input type="text" id="new-user-input" placeholder="ID/ссылка (Enter для добавл.)">
-            <button class="sq-btn" onclick="fetchLiveDB(true)">🔄</button>
+            <button class="sq-btn" onclick="refreshApp()">🔄</button>
             <button class="sq-btn btn-secondary" onclick="openSettings()">⚙️</button>
         </div>
-        <div class="user-list" id="users-container"></div>
+        <div class="user-list" id="users-container">Ожидание данных...</div>
     </div>
 
-    <!-- КАРТОЧКА -->
     <div class="container" id="detail-view">
         <div class="nav-bar">
             <button class="sq-btn btn-secondary" onclick="showList()">◀</button>
@@ -63,13 +63,11 @@
             <div class="card-name" id="detail-name">Имя</div>
             <div style="font-size: 14px; color: var(--tg-theme-hint-color);">ID: <span id="detail-id"></span></div>
         </div>
-        
         <div class="card-stats">
             <div class="stat-row"><span>Статус:</span> <span class="stat-value" id="detail-status"></span></div>
             <div class="stat-row"><span>Часов в CS:</span> <span class="stat-value" id="detail-hours"></span></div>
             <div class="stat-row"><span>Инвентарь:</span> <span class="stat-value" id="detail-inv"></span></div>
         </div>
-
         <div class="logs-section">
             <h4 style="margin-top:0; margin-bottom:10px;">💸 Логи (В холде)</h4>
             <div id="detail-logs-list"></div>
@@ -79,14 +77,12 @@
                 <button class="sq-btn" style="width: auto; padding: 0 15px;" onclick="addLog()">➕</button>
             </div>
         </div>
-
         <div>
             <label style="display:block; margin-bottom:5px; font-weight:bold;">Примечание: <span style="font-size:12px; font-weight:normal;">(Enter для сохр.)</span></label>
             <textarea id="detail-note" placeholder="Введи заметку..."></textarea>
         </div>
     </div>
 
-    <!-- НАСТРОЙКИ -->
     <div class="container" id="settings-view">
         <div class="nav-bar">
             <button class="sq-btn btn-secondary" onclick="showList()">◀</button>
@@ -109,18 +105,16 @@
         document.getElementById('toggle-bells').checked = showBells;
 
         const urlParams = new URLSearchParams(window.location.search);
-        const BUCKET = urlParams.get('b');
+        const ZDATA = urlParams.get('z');
         const AUTH = urlParams.get('a');
         let BOT_TOKEN = null;
         let CHAT_ID = null;
 
         if (AUTH) {
             try {
-                const decodedAuth = decodeURIComponent(escape(window.atob(AUTH)));
-                const authObj = JSON.parse(decodedAuth);
-                BOT_TOKEN = authObj.t;
-                CHAT_ID = authObj.c;
-            } catch (e) { console.error("Auth error"); }
+                const authObj = JSON.parse(decodeURIComponent(escape(window.atob(AUTH))));
+                BOT_TOKEN = authObj.t; CHAT_ID = authObj.c;
+            } catch (e) {}
         }
 
         function showToast(msg) {
@@ -129,33 +123,29 @@
             setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 2500);
         }
 
+        // ОТПРАВКА С ЗАЩИТОЙ ОТ ПРЕВЬЮ
         function sendSilentCommand(cmdObj) {
-            if (!BOT_TOKEN || !CHAT_ID) return showToast("Ошибка: Нет связи с ботом");
+            if (!BOT_TOKEN || !CHAT_ID) return showToast("Нет связи с ботом");
             const text = "/webapp " + JSON.stringify(cmdObj);
             fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ chat_id: CHAT_ID, text: text, disable_notification: true })
+                body: JSON.stringify({ chat_id: CHAT_ID, text: text, disable_notification: true, link_preview_options: { is_disabled: true } })
             }).catch(e => console.error(e));
         }
 
-        // --- НОВЫЙ АДРЕС ОБЛАКА ---
-        async function fetchLiveDB(isManualRefresh = false) {
-            if (!BUCKET || BUCKET === 'offline') return document.getElementById('users-container').innerHTML = "Ожидание данных от бота...";
-            if (isManualRefresh) showToast("Обновление...");
+        // РАСПАКОВКА ДАННЫХ ИЗ URL
+        if (ZDATA) {
             try {
-                const response = await fetch(`https://api.npoint.io/${BUCKET}?t=${Date.now()}`);
-                if (response.ok) {
-                    usersData = await response.json();
-                    if (!Array.isArray(usersData)) usersData = []; // Защита от мусора
-                    renderList();
-                    if (currentUser) showDetail(currentUser.id, true);
-                    if (isManualRefresh) showToast("Данные актуальны ✅");
-                }
-            } catch(e) {
-                if (isManualRefresh) showToast("Ошибка обновления ❌");
-            }
+                const binaryString = window.atob(ZDATA);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+                const decompressed = pako.inflate(bytes, { to: 'string' });
+                usersData = JSON.parse(decompressed);
+                renderList();
+            } catch(e) { document.getElementById('users-container').innerHTML = "Ошибка чтения базы."; }
+        } else {
+            document.getElementById('users-container').innerHTML = "База пуста.";
         }
-        fetchLiveDB();
 
         function getStatusClass(u) { return u.game ? "bg-ingame" : (u.status === 1 ? "bg-online" : (u.status === 3 || u.status === 4 ? "bg-away" : "")); }
         function getStatusText(u) { return u.game ? "🎮 " + u.game : (u.status === 1 ? "🟢 В сети" : (u.status === 0 ? "🔴 Оффлайн" : "🟡 Отошел")); }
@@ -194,10 +184,10 @@
             });
         }
 
-        function showDetail(id, silentUpdate = false) {
+        function showDetail(id) {
             currentUser = usersData.find(u => u.id === id); 
             if(!currentUser) return showList();
-            if(!silentUpdate) switchView('detail-view');
+            switchView('detail-view');
             
             document.getElementById('detail-avatar').src = currentUser.avatar || 'https://steamuserimages-a.akamaihd.net/ugc/885384897182110030/F095539864AC9E94AE5236E04C8CA7C2725BCEEA/';
             document.getElementById('detail-link').href = currentUser.url;
@@ -206,7 +196,7 @@
             document.getElementById('detail-status').innerHTML = getStatusText(currentUser);
             document.getElementById('detail-hours').innerText = currentUser.hours;
             document.getElementById('detail-inv').innerText = currentUser.inv;
-            if(!silentUpdate) document.getElementById('detail-note').value = currentUser.note;
+            document.getElementById('detail-note').value = currentUser.note;
             renderLogs();
         }
 
@@ -228,7 +218,9 @@
             const input = document.getElementById('new-user-input').value.trim();
             if (!input) return showToast("Введите ID/ссылку!");
             sendSilentCommand({ action: "add_user", url: input });
-            showToast("Добавляю... Нажми 🔄 через пару секунд!"); document.getElementById('new-user-input').value = "";
+            showToast("Добавляю... Панель закроется для обновления."); 
+            document.getElementById('new-user-input').value = "";
+            setTimeout(() => tg.close(), 1000);
         }
 
         function saveNote() {
@@ -264,6 +256,8 @@
                 }
             });
         }
+
+        function refreshApp() { tg.close(); }
     </script>
 </body>
 </html>

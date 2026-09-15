@@ -16,7 +16,7 @@
         .container { padding: 15px; display: none; }
         .active-view { display: block; }
         
-        /* Верхняя панель (Добавление и Настройки) */
+        /* Верхняя панель */
         .top-bar { display: flex; gap: 10px; margin-bottom: 15px; }
         .top-bar input {
             flex-grow: 1; padding: 10px; border-radius: 8px;
@@ -45,14 +45,13 @@
         }
         .user-item:active { opacity: 0.7; }
         
-        /* Социальный аватар с кружком */
         .avatar-container { position: relative; margin-right: 15px; }
         .avatar-small { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; display: block; }
         .status-badge {
             position: absolute; bottom: 0; right: 0;
             width: 12px; height: 12px; border-radius: 50%;
             border: 2px solid var(--tg-theme-secondary-bg-color, #242f3d);
-            display: none; /* по умолчанию скрыт (оффлайн) */
+            display: none;
         }
         .bg-online { background-color: #4CAF50; display: block; }
         .bg-ingame { background-color: #2196F3; display: block; }
@@ -60,8 +59,6 @@
 
         .user-info-short { flex-grow: 1; }
         .user-name { font-weight: bold; font-size: 16px; margin: 0; }
-        
-        /* Колокольчик */
         .bell-icon { font-size: 18px; padding: 5px; cursor: pointer; }
 
         /* Детальная карточка */
@@ -85,12 +82,6 @@
             border: 1px solid var(--tg-theme-hint-color, #7f91a4);
             border-radius: 8px; min-height: 80px; resize: none; font-family: inherit; margin-bottom: 15px;
         }
-        .main-btn {
-            width: 100%; padding: 12px; border: none; border-radius: 8px;
-            background-color: var(--tg-theme-button-color, #5288c1);
-            color: var(--tg-theme-button-text-color, #ffffff);
-            font-size: 16px; font-weight: bold; cursor: pointer;
-        }
 
         /* Настройки */
         .setting-row {
@@ -111,14 +102,28 @@
         input:checked + .slider { background-color: var(--tg-theme-button-color, #5288c1); }
         input:checked + .slider:before { transform: translateX(16px); }
 
+        /* Toast Уведомления */
+        #toast {
+            visibility: hidden; min-width: 200px;
+            background-color: var(--tg-theme-button-color, #5288c1);
+            color: var(--tg-theme-button-text-color, #ffffff);
+            text-align: center; border-radius: 8px; padding: 12px;
+            position: fixed; z-index: 1000; left: 50%; bottom: 20px;
+            transform: translateX(-50%);
+            font-size: 14px; opacity: 0; transition: opacity 0.3s, bottom 0.3s;
+        }
+        #toast.show { visibility: visible; opacity: 1; bottom: 30px; }
     </style>
 </head>
 <body>
+    <!-- Всплывающее уведомление -->
+    <div id="toast">Уведомление</div>
+
     <!-- СПИСОК -->
     <div class="container active-view" id="list-view">
         <div class="top-bar">
-            <input type="text" id="new-user-input" placeholder="Steam ID или ссылка">
-            <button class="sq-btn" onclick="addUser()">➕</button>
+            <input type="text" id="new-user-input" placeholder="ID или ссылка (жми Enter)">
+            <button class="sq-btn" onclick="refreshPanel()">🔄</button>
             <button class="sq-btn btn-secondary" onclick="openSettings()">⚙️</button>
         </div>
         <div class="user-list" id="users-container"></div>
@@ -145,9 +150,11 @@
         </div>
 
         <div>
-            <label style="display:block; margin-bottom:5px; font-weight:bold;">Примечание:</label>
+            <label style="display:block; margin-bottom:5px; font-weight:bold;">
+                Примечание: 
+                <span style="font-size:12px; font-weight:normal; color:var(--tg-theme-hint-color);">(Enter для сохранения)</span>
+            </label>
             <textarea id="detail-note" placeholder="Введи заметку..."></textarea>
-            <button class="main-btn" onclick="saveNote()">💾 Сохранить примечание</button>
         </div>
     </div>
 
@@ -156,7 +163,7 @@
         <div class="nav-bar">
             <button class="sq-btn btn-secondary" onclick="showList()">◀</button>
             <h3 style="margin:0; align-self:center;">Настройки</h3>
-            <div style="width:42px;"></div> <!-- Пустышка для центрирования -->
+            <div style="width:42px;"></div>
         </div>
         <div class="setting-row">
             <span>Показывать колокольчики</span>
@@ -173,12 +180,17 @@
 
         let currentUser = null;
         let usersData = [];
-        
-        // Настройки из локального хранилища браузера (сохраняются)
         let showBells = localStorage.getItem('showBells') !== 'false';
         document.getElementById('toggle-bells').checked = showBells;
 
-        // Расшифровка данных от бота
+        // Показ уведомления снизу
+        function showToast(msg) {
+            const toast = document.getElementById("toast");
+            toast.innerText = msg;
+            toast.className = "show";
+            setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 2500);
+        }
+
         const urlParams = new URLSearchParams(window.location.search);
         const encodedData = urlParams.get('d');
         
@@ -191,7 +203,7 @@
                 document.getElementById('users-container').innerHTML = "Ошибка загрузки данных.";
             }
         } else {
-            document.getElementById('users-container').innerHTML = "База пуста или данные не переданы.";
+            document.getElementById('users-container').innerHTML = "База пуста.";
         }
 
         function getStatusClass(user) {
@@ -217,11 +229,7 @@
                 item.className = 'user-item';
                 
                 const badgeClass = getStatusClass(user);
-                
-                let bellHtml = '';
-                if (showBells) {
-                    bellHtml = `<div class="bell-icon" onclick="toggleNotif(event, '${user.id}')">${user.notif ? '🔔' : '🔕'}</div>`;
-                }
+                let bellHtml = showBells ? `<div class="bell-icon" onclick="toggleNotif(event, '${user.id}')">${user.notif ? '🔔' : '🔕'}</div>` : '';
 
                 item.innerHTML = `
                     <div class="avatar-container" onclick="showDetail('${user.id}')">
@@ -268,23 +276,45 @@
             renderList();
         }
 
-        // --- Взаимодействие с ботом ---
-        
+        // --- Взаимодействие и обработка Enter ---
+
+        document.getElementById("new-user-input").addEventListener("keypress", function(event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                addUser();
+            }
+        });
+
+        document.getElementById("detail-note").addEventListener("keydown", function(event) {
+            if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                saveNote();
+            }
+        });
+
+        function refreshPanel() {
+            showToast("Обновление...");
+            tg.sendData(JSON.stringify({ action: "refresh" }));
+            tg.close();
+        }
+
         function toggleNotif(event, id) {
-            event.stopPropagation(); // Чтобы не открывалась карточка
+            event.stopPropagation(); 
             tg.sendData(JSON.stringify({ action: "toggle_notif", steam_id: id }));
             tg.close();
         }
 
         function addUser() {
             const input = document.getElementById('new-user-input').value.trim();
-            if (!input) return tg.showAlert("Введите Steam ID или ссылку!");
+            if (!input) return showToast("Введите Steam ID или ссылку!");
+            showToast("Добавление...");
             tg.sendData(JSON.stringify({ action: "add_user", url: input }));
             tg.close();
         }
 
         function saveNote() {
             if (!currentUser) return;
+            showToast("Сохранение...");
             tg.sendData(JSON.stringify({ action: "update_note", steam_id: currentUser.id, note: document.getElementById('detail-note').value }));
             tg.close();
         }

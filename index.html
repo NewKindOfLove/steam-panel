@@ -2,215 +2,197 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Steam Panel</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        body { background-color: var(--tg-theme-secondary-bg-color, #1c1c1d); color: var(--tg-theme-text-color, #ffffff); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 16px; overflow-x: hidden; }
-        #page-list, #page-dossier { transition: opacity 0.3s; }
-        .search-container { background-color: var(--tg-theme-bg-color, #2c2c2e); border-radius: 10px; padding: 10px 15px; display: flex; align-items: center; margin-bottom: 24px; }
-        .search-container input { background: transparent; border: none; color: white; font-size: 16px; width: 100%; outline: none; margin-left: 10px; }
-        h2 { font-size: 18px; margin: 0 0 10px 10px; font-weight: 600; }
+        body {
+            background-color: var(--tg-theme-bg-color, #17212b);
+            color: var(--tg-theme-text-color, #ffffff);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        .container { padding: 15px; }
         
-        .list-box { background-color: var(--tg-theme-bg-color, #2c2c2e); border-radius: 12px; overflow: hidden; }
-        .list-item { display: flex; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--tg-theme-secondary-bg-color, #1c1c1d); cursor: pointer; }
-        .list-item:active { background-color: var(--tg-theme-secondary-bg-color, #1c1c1d); }
-        .list-item:last-child { border-bottom: none; }
-
-        .avatar-container { position: relative; margin-right: 15px; }
-        .avatar { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; background-color: #333; }
-        .online-dot { position: absolute; bottom: 0; right: 0; width: 12px; height: 12px; border-radius: 50%; background-color: #34c759; border: 2px solid var(--tg-theme-bg-color, #2c2c2e); }
-
-        .icon-add { width: 42px; height: 42px; border-radius: 50%; background-color: rgba(10, 132, 255, 0.1); color: var(--tg-theme-link-color, #0a84ff); display: flex; justify-content: center; align-items: center; margin-right: 15px; }
-        .icon-add svg { width: 20px; height: 20px; }
-        .item-info { flex-grow: 1; }
-        .item-title { font-size: 16px; font-weight: 500; }
-        .item-subtitle { font-size: 13px; color: var(--tg-theme-hint-color, #8e8e93); margin-top: 2px; }
-        .add-text { color: var(--tg-theme-link-color, #0a84ff); font-size: 16px; font-weight: 500; }
-
-        #toast { visibility: hidden; min-width: 200px; margin-left: -115px; background-color: rgba(40,40,40,0.95); color: #fff; text-align: center; border-radius: 20px; padding: 12px 20px; position: fixed; z-index: 100; left: 50%; bottom: 20px; font-size: 14px; font-weight: 500; backdrop-filter: blur(10px); opacity: 0; transition: opacity 0.3s, bottom 0.3s; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
-        #toast.show { visibility: visible; opacity: 1; bottom: 40px; }
-
-        /* Модальное окно с полем ввода */
-        #add-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 50; align-items: center; justify-content: center; backdrop-filter: blur(5px); animation: fadeIn 0.2s; }
-        .modal-content { background-color: var(--tg-theme-bg-color, #2c2c2e); width: 80%; border-radius: 16px; padding: 24px; text-align: center; }
-        .modal-content h3 { margin-top: 0; font-size: 18px; }
-        .input-url { width: 90%; padding: 12px; border-radius: 8px; border: 1px solid #444; background: #1c1c1d; color: white; font-size: 14px; margin-bottom: 20px; outline: none; }
+        /* Список пользователей */
+        .user-list { display: flex; flex-direction: column; gap: 10px; }
+        .user-item {
+            display: flex; align-items: center; padding: 10px;
+            background-color: var(--tg-theme-secondary-bg-color, #242f3d);
+            border-radius: 10px; cursor: pointer;
+        }
+        .user-item:active { opacity: 0.7; }
+        .avatar-small { width: 40px; height: 40px; border-radius: 50%; margin-right: 15px; object-fit: cover; }
+        .user-info-short { flex-grow: 1; }
+        .user-name { font-weight: bold; font-size: 16px; margin: 0; display: flex; align-items: center; gap: 6px; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; background-color: #4CAF50; display: inline-block; }
+        .status-offline { display: none; } /* Скрываем зеленый кружок, если оффлайн */
         
-        #page-dossier { display: none; text-align: center; animation: slideIn 0.3s forwards; }
-        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        /* Детальная карточка */
+        #detail-view { display: none; }
+        .card-header { display: flex; flex-direction: column; align-items: center; text-align: center; margin-bottom: 20px; }
+        .avatar-big { width: 100px; height: 100px; border-radius: 50%; margin-bottom: 10px; border: 3px solid var(--tg-theme-button-color, #5288c1); object-fit: cover;}
+        .card-name a { color: var(--tg-theme-link-color, #6ab2f2); text-decoration: none; font-size: 22px; font-weight: bold; }
+        .card-stats {
+            background-color: var(--tg-theme-secondary-bg-color, #242f3d);
+            padding: 15px; border-radius: 10px; margin-bottom: 15px;
+        }
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 8px; }
+        .stat-row:last-child { margin-bottom: 0; }
+        .stat-value { font-weight: bold; }
         
-        .dossier-header { margin-top: 20px; margin-bottom: 30px; }
-        .dossier-avatar { width: 120px; height: 120px; border-radius: 50%; object-fit: cover; margin-bottom: 15px; border: 3px solid var(--tg-theme-button-color, #2481cc); }
-        .dossier-name { font-size: 24px; font-weight: bold; margin: 0; }
-        .dossier-id { font-size: 14px; color: var(--tg-theme-hint-color, #8e8e93); margin-top: 5px; }
-
-        .btn-main { background-color: var(--tg-theme-button-color, #2481cc); color: var(--tg-theme-button-text-color, #ffffff); border: none; border-radius: 10px; padding: 14px; font-size: 16px; font-weight: 600; width: 100%; cursor: pointer; margin-bottom: 10px; }
-        .btn-secondary { background-color: transparent; border: 1px solid var(--tg-theme-hint-color); color: var(--tg-theme-text-color); border-radius: 10px; padding: 12px; font-size: 16px; width: 100%; cursor: pointer; margin-bottom: 10px; }
-        .btn-delete { background-color: rgba(255, 59, 48, 0.1); border: 1px solid #ff3b30; color: #ff3b30; border-radius: 10px; padding: 12px; font-size: 16px; width: 100%; cursor: pointer; margin-top: 10px;}
-        
-        .features-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; text-align: left; margin-bottom: 20px;}
-        .feature-card { background-color: var(--tg-theme-bg-color, #2c2c2e); padding: 15px; border-radius: 12px; }
-        .fc-title { font-size: 13px; color: var(--tg-theme-hint-color, #8e8e93); margin-bottom: 5px; }
-        .fc-value { font-size: 15px; font-weight: 500; }
+        /* Текстовая область и кнопка */
+        textarea {
+            width: 100%; box-sizing: border-box; padding: 10px;
+            background-color: var(--tg-theme-bg-color, #17212b);
+            color: var(--tg-theme-text-color, #ffffff);
+            border: 1px solid var(--tg-theme-hint-color, #7f91a4);
+            border-radius: 8px; min-height: 80px; resize: none; font-family: inherit; margin-bottom: 15px;
+        }
+        button {
+            width: 100%; padding: 12px; border: none; border-radius: 8px;
+            background-color: var(--tg-theme-button-color, #5288c1);
+            color: var(--tg-theme-button-text-color, #ffffff);
+            font-size: 16px; font-weight: bold; cursor: pointer;
+        }
+        button.delete-btn { background-color: #e53935; margin-top: 10px; }
+        button:active { opacity: 0.8; }
+        .back-btn { margin-bottom: 15px; background-color: transparent; border: 1px solid var(--tg-theme-button-color); color: var(--tg-theme-button-color); }
     </style>
 </head>
 <body>
-
-    <div id="toast">✅ ID скопирован</div>
-
-    <div id="add-modal">
-        <div class="modal-content">
-            <h3>Добавить профиль</h3>
-            <input type="text" id="addInput" class="input-url" placeholder="Ссылка или ID...">
-            <button class="btn-main" onclick="submitAdd()">➕ Добавить</button>
-            <button class="btn-secondary" onclick="closeModal()">Отмена</button>
+    <div class="container" id="list-view">
+        <div class="user-list" id="users-container">
+            <!-- Пользователи будут загружаться сюда -->
         </div>
     </div>
 
-    <div id="page-list">
-        <div class="search-container">
-            <span>🔍</span>
-            <input type="text" id="searchInput" placeholder="Поиск по нику или ID...">
-        </div>
-        <h2>Мои типы</h2>
-        <div class="list-box" id="profiles-list"></div>
-    </div>
-
-    <div id="page-dossier">
-        <div class="dossier-header">
-            <img id="dos-avatar" class="dossier-avatar" src="" onerror="this.src='https://store.cloudflare.steamstatic.com/public/shared/images/responsive/share_steam_logo.png'">
-            <h1 id="dos-name" class="dossier-name">Name</h1>
-            <p id="dos-id" class="dossier-id">ID</p>
-        </div>
-
-        <button class="btn-main" onclick="openSteamLink()">🔗 Открыть профиль Steam</button>
-        <button class="btn-secondary" id="btn-notify" onclick="toggleNotify()">🔔 Уведомления: Вкл</button>
-
-        <div class="features-grid">
-            <div class="feature-card" onclick="copyId()">
-                <div class="fc-title">Steam ID</div>
-                <div class="fc-value">Скопировать 📋</div>
-            </div>
-            <div class="feature-card">
-                <div class="fc-title">Текущий статус</div>
-                <div class="fc-value" id="dos-status">Проверка...</div>
-            </div>
+    <div class="container" id="detail-view">
+        <button class="back-btn" onclick="showList()">🔙 Назад к списку</button>
+        <div class="card-header">
+            <img id="detail-avatar" class="avatar-big" src="" alt="Avatar">
+            <div class="card-name"><a id="detail-link" href="#" target="_blank">Имя</a></div>
+            <div style="font-size: 14px; color: var(--tg-theme-hint-color); margin-top: 5px;" id="detail-id"></div>
         </div>
         
-        <button class="btn-delete" onclick="deleteProfile()">❌ Удалить из базы</button>
+        <div class="card-stats">
+            <div class="stat-row"><span>Статус:</span> <span class="stat-value" id="detail-status"></span></div>
+            <div class="stat-row"><span>Часов в CS:</span> <span class="stat-value" id="detail-hours"></span></div>
+            <div class="stat-row"><span>Инвентарь:</span> <span class="stat-value" id="detail-inv"></span></div>
+        </div>
+
+        <div>
+            <label style="display:block; margin-bottom:5px; font-weight:bold;">Примечание:</label>
+            <textarea id="detail-note" placeholder="Введи заметку..."></textarea>
+            <button onclick="saveNote()">💾 Сохранить примечание</button>
+            <button class="delete-btn" onclick="deleteUser()">❌ Удалить из базы</button>
+        </div>
     </div>
 
     <script>
-        let tg = window.Telegram.WebApp;
+        const tg = window.Telegram.WebApp;
         tg.expand();
-        let currentSteamId = "";
-        const DEFAULT_IMG = "https://store.cloudflare.steamstatic.com/public/shared/images/responsive/share_steam_logo.png";
-        
-        // ВАЖНО: Впиши логин своего бота (без @)
-        const BOT_USERNAME = "steamstoolsbot"; 
 
-        let profiles = [];
+        let currentUser = null;
+        let usersData = [];
+
+        // Получаем зашифрованные данные из ссылки, которую генерирует питон
         const urlParams = new URLSearchParams(window.location.search);
-        const dataB64 = urlParams.get('data');
-        if (dataB64) {
-            try {
-                const binaryString = atob(decodeURIComponent(dataB64));
-                const bytes = new Uint8Array(binaryString.length);
-                for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
-                profiles = JSON.parse(new TextDecoder('utf-8').decode(bytes));
-            } catch(e) {}
-        }
-
-        function renderList(filterText = "") {
-            const listBox = document.getElementById('profiles-list');
-            listBox.innerHTML = `
-                <div class="list-item" onclick="openModal()">
-                    <div class="icon-add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></div>
-                    <div class="item-info"><div class="add-text">Добавить профиль</div></div>
-                </div>
-            `;
-            profiles.forEach(p => {
-                if (filterText && !p.nickname.toLowerCase().includes(filterText) && !p.steam_id.includes(filterText)) return;
-                let isOnline = (p.status === 'online' || p.status === 'in-game');
-                let dotHtml = isOnline ? `<div class="online-dot"></div>` : '';
-                const html = `
-                <div class="list-item" onclick="openDossier('${p.steam_id}', '${p.nickname}', '${p.avatar}', '${p.status}', ${p.notify})">
-                    <div class="avatar-container"><img class="avatar" src="${p.avatar}" onerror="this.src='${DEFAULT_IMG}'">${dotHtml}</div>
-                    <div class="item-info">
-                        <div class="item-title">${p.nickname} ${p.notify === 0 ? '🔕' : ''}</div>
-                        <div class="item-subtitle">${p.steam_id}</div>
-                    </div><div class="arrow">›</div>
-                </div>`;
-                listBox.insertAdjacentHTML('beforeend', html);
-            });
-        }
-        renderList();
-        document.getElementById('searchInput').addEventListener('input', e => renderList(e.target.value.toLowerCase()));
-
-        function openModal() { document.getElementById('add-modal').style.display = 'flex'; }
-        function closeModal() { document.getElementById('add-modal').style.display = 'none'; }
+        const encodedData = urlParams.get('d');
         
-        function showToast(text) {
-            const toast = document.getElementById("toast");
-            toast.innerText = text;
-            toast.className = "show";
-            setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 1500);
-        }
-
-        tg.BackButton.onClick(function() {
-            document.getElementById('page-dossier').style.display = 'none';
-            document.getElementById('page-list').style.display = 'block';
-            tg.BackButton.hide();
-        });
-
-        function openDossier(steamId, name, avatarUrl, status, notify) {
-            currentSteamId = steamId;
-            document.getElementById('dos-avatar').src = avatarUrl;
-            document.getElementById('dos-name').innerText = name;
-            document.getElementById('dos-id').innerText = steamId;
-            
-            let statusText = "Оффлайн 🔴";
-            if (status === 'online') statusText = "В сети 🟢";
-            else if (status === 'in-game') statusText = "В игре 🎮";
-            else if (status === 'hidden') statusText = "Скрыт 🕵️‍♂️";
-            document.getElementById('dos-status').innerText = statusText;
-
-            // Кнопка уведомлений
-            const btnNotify = document.getElementById('btn-notify');
-            if (notify === 1) {
-                btnNotify.innerText = "🔔 Уведомления: Включены";
-                btnNotify.style.color = "var(--tg-theme-text-color)";
-            } else {
-                btnNotify.innerText = "🔕 Уведомления: Выключены";
-                btnNotify.style.color = "#8e8e93";
+        if (encodedData) {
+            try {
+                const decoded = decodeURIComponent(escape(window.atob(encodedData)));
+                usersData = JSON.parse(decoded);
+                renderList();
+            } catch (e) {
+                document.getElementById('users-container').innerHTML = "Ошибка загрузки данных.";
             }
-
-            document.getElementById('page-list').style.display = 'none';
-            document.getElementById('page-dossier').style.display = 'block';
-            tg.BackButton.show();
+        } else {
+            document.getElementById('users-container').innerHTML = "База пуста или данные не переданы.";
         }
 
-        function openSteamLink() { tg.openLink("https://steamcommunity.com/profiles/" + currentSteamId); }
-        function copyId() { navigator.clipboard.writeText(currentSteamId); showToast("✅ ID скопирован"); }
+        function getStatusText(user) {
+            if (user.game) return "🎮 " + user.game;
+            if (user.status === 1) return "В сети";
+            if (user.status === 0) return "Оффлайн";
+            return "Отошел";
+        }
 
-        // --- ВЗАИМОДЕЙСТВИЕ С БОТОМ (DEEP LINKING) ---
-        function deleteProfile() {
-            tg.showConfirm("Точно удалить профиль?", function(confirmed) {
-                if (confirmed) tg.openTelegramLink(`https://t.me/${BOT_USERNAME}?start=del_${currentSteamId}`);
+        function renderList() {
+            const container = document.getElementById('users-container');
+            container.innerHTML = '';
+            
+            usersData.forEach(user => {
+                const item = document.createElement('div');
+                item.className = 'user-item';
+                
+                // Если юзер в сети (статус 1) или в игре, показываем зеленый кружок
+                const isOnline = user.status === 1 || user.game !== "";
+                const dotClass = isOnline ? "status-dot" : "status-dot status-offline";
+                
+                item.innerHTML = `
+                    <img class="avatar-small" src="${user.avatar || 'https://steamuserimages-a.akamaihd.net/ugc/885384897182110030/F095539864AC9E94AE5236E04C8CA7C2725BCEEA/'}">
+                    <div class="user-info-short">
+                        <div class="user-name">
+                            ${user.name} <span class="${dotClass}"></span>
+                        </div>
+                        <div style="font-size: 12px; color: var(--tg-theme-hint-color);">
+                            ${getStatusText(user)}
+                        </div>
+                    </div>
+                `;
+                item.onclick = () => showDetail(user);
+                container.appendChild(item);
             });
         }
-        function toggleNotify() {
-            tg.openTelegramLink(`https://t.me/${BOT_USERNAME}?start=tog_${currentSteamId}`);
+
+        function showDetail(user) {
+            currentUser = user;
+            document.getElementById('list-view').style.display = 'none';
+            document.getElementById('detail-view').style.display = 'block';
+            
+            document.getElementById('detail-avatar').src = user.avatar || 'https://steamuserimages-a.akamaihd.net/ugc/885384897182110030/F095539864AC9E94AE5236E04C8CA7C2725BCEEA/';
+            document.getElementById('detail-link').innerText = user.name;
+            document.getElementById('detail-link').href = user.url;
+            document.getElementById('detail-id').innerText = "ID: " + user.id;
+            
+            document.getElementById('detail-status').innerText = getStatusText(user);
+            document.getElementById('detail-hours').innerText = user.hours;
+            document.getElementById('detail-inv').innerText = user.inv;
+            document.getElementById('detail-note').value = user.note;
         }
-        function submitAdd() {
-            const val = document.getElementById('addInput').value.trim();
-            if (!val) return;
-            // Кодируем в безопасный Base64URL
-            let encoded = btoa(unescape(encodeURIComponent(val))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-            tg.openTelegramLink(`https://t.me/${BOT_USERNAME}?start=add_${encoded}`);
+
+        function showList() {
+            document.getElementById('detail-view').style.display = 'none';
+            document.getElementById('list-view').style.display = 'block';
+            currentUser = null;
+        }
+
+        // Отправка данных обратно в бота (через Keyboard Button WebApp)
+        function saveNote() {
+            if (!currentUser) return;
+            const newNote = document.getElementById('detail-note').value;
+            const dataToBot = JSON.stringify({
+                action: "update_note",
+                steam_id: currentUser.id,
+                note: newNote
+            });
+            tg.sendData(dataToBot);
+            tg.close(); // Закрываем WebApp после сохранения
+        }
+
+        function deleteUser() {
+            if (!currentUser) return;
+            if(confirm("Точно удалить пользователя?")) {
+                const dataToBot = JSON.stringify({
+                    action: "delete",
+                    steam_id: currentUser.id
+                });
+                tg.sendData(dataToBot);
+                tg.close();
+            }
         }
     </script>
 </body>

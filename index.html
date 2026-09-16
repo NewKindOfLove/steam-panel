@@ -43,7 +43,6 @@
         
         select { background-color: var(--tg-theme-bg-color, #17212b); color: var(--tg-theme-text-color, #ffffff); border: 1px solid var(--tg-theme-hint-color, #7f91a4); border-radius: 5px; padding: 5px; outline: none; font-weight: bold; font-size: 14px;}
         .date-sel { width: 55px; text-align: center; }
-        .tradeban-input { width: 55px; padding: 5px; border-radius: 5px; background-color: var(--tg-theme-bg-color, #17212b); color: white; border: 1px solid var(--tg-theme-hint-color, #7f91a4); outline: none; text-align: center; font-size: 14px;}
         .snat-input { width: 75px; padding: 4px; border-radius: 5px; background-color: var(--tg-theme-bg-color, #17212b); color: white; border: 1px solid var(--tg-theme-hint-color, #7f91a4); outline: none; text-align: center; font-size: 14px;}
         
         input[type="time"]::-webkit-calendar-picker-indicator { display: none; -webkit-appearance: none; }
@@ -118,7 +117,6 @@
                 </div>
             </div>
             
-            <!-- Поля для Трейдбана -->
             <div id="ban-ui" class="param-box">
                 <div class="param-header">
                     <span id="ban-hint" class="param-title">(точная дата конца тб:)</span>
@@ -153,7 +151,6 @@
                 </div>
             </div>
 
-            <!-- Поля для Снятых -->
             <div id="snat-ui" class="param-box">
                 <div class="param-header">
                     <span class="param-title">(время, когда тип был снят:)</span>
@@ -187,7 +184,6 @@
         </div>
     </div>
 
-    <!-- НАСТРОЙКИ -->
     <div class="container" id="settings-view">
         <div class="nav-bar">
             <button class="sq-btn btn-secondary" onclick="showList()">◀</button>
@@ -286,10 +282,15 @@
         setInterval(fetchLiveDB, 3000);
         fetchLiveDB();
 
-        function manualRefresh() { document.getElementById('new-user-input').value = ""; fetchLiveDB(true); }
+        // КНОПКА ПРИНУДИТЕЛЬНОГО ОБНОВЛЕНИЯ ВСЕХ ИНВЕНТАРЕЙ В БАЗЕ
+        function manualRefresh() { 
+            document.getElementById('new-user-input').value = ""; 
+            sendSilentCommand({ action: "force_update" });
+            showToast("Синхронизация со Steam..."); 
+        }
 
         async function sendSilentCommand(cmdObj) {
-            showToast("Обработка...");
+            if (cmdObj.action !== "force_update") showToast("Обработка...");
             try {
                 const r = await fetch(`https://api.telegra.ph/getPage/${CMD_PATH}?return_content=true&_=${Date.now()}`);
                 const data = await r.json();
@@ -312,7 +313,7 @@
                 formData.append("content", JSON.stringify([{"tag":"p", "children": chunks.length ? chunks : ["[]"]}]));
                 
                 await fetch(`https://api.telegra.ph/editPage/${CMD_PATH}`, { method: "POST", body: formData });
-                setTimeout(fetchLiveDB, 1500);
+                setTimeout(() => fetchLiveDB(true), 2500);
             } catch(e) { showToast("Ошибка сети"); }
         }
 
@@ -502,7 +503,6 @@
             document.getElementById('detail-name').innerText = currentUser.name;
             document.getElementById('detail-id').innerText = currentUser.id;
             
-            // Фикс двойного "Добавлен"
             let addedStr = currentUser.added_date ? currentUser.added_date : "Ранее";
             document.getElementById('detail-added-date').innerText = addedStr;
             

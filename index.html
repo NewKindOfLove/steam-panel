@@ -169,7 +169,6 @@
                 if(document.getElementById('list-view').classList.contains('active-view')) {
                     filterList(); 
                 } else if (currentUser) {
-                    // Передаем true, чтобы UI не сбрасывался во время автообновления
                     showDetail(currentUser.id, true);
                 }
                 if (manual) showToast("Данные обновлены ✅");
@@ -378,7 +377,8 @@
             document.getElementById('detail-hours').innerText = currentUser.hours;
             document.getElementById('detail-inv').innerText = currentUser.inv;
             
-            // Если это НЕ тихое фоновое обновление - настраиваем поля
+            // ВОТ ОН, ФИКС БАГА!
+            // Не трогаем поля ввода, если карточка уже открыта и обновляется в фоне
             if (!silentUpdate) {
                 const sel = document.getElementById('tradeban-select');
                 const banRow = document.getElementById('tradeban-inputs-row');

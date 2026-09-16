@@ -42,17 +42,26 @@
         select { background-color: var(--tg-theme-bg-color, #17212b); color: var(--tg-theme-text-color, #ffffff); border: 1px solid var(--tg-theme-hint-color, #7f91a4); border-radius: 5px; padding: 5px; outline: none; font-weight: bold; font-size: 14px;}
         .date-sel { width: 55px; text-align: center; }
         .tradeban-input { width: 55px; padding: 5px; border-radius: 5px; background-color: var(--tg-theme-bg-color, #17212b); color: white; border: 1px solid var(--tg-theme-hint-color, #7f91a4); outline: none; text-align: center; font-size: 14px;}
-        .snat-input { width: 75px; padding: 4px; border-radius: 5px; background-color: var(--tg-theme-bg-color, #17212b); color: white; border: 1px solid var(--tg-theme-hint-color, #7f91a4); outline: none; text-align: center; font-size: 14px;}
+        .snat-input { width: 65px; padding: 4px; border-radius: 5px; background-color: var(--tg-theme-bg-color, #17212b); color: white; border: 1px solid var(--tg-theme-hint-color, #7f91a4); outline: none; text-align: center; font-size: 14px;}
         
-        /* НОВЫЙ ДИЗАЙН ПАРАМЕТРОВ */
+        /* УБИРАЕМ ИКОНКУ ЧАСОВ ИЗ INPUT TIME */
+        input[type="time"]::-webkit-calendar-picker-indicator { display: none; -webkit-appearance: none; }
+        input[type="time"] { -moz-appearance: textfield; }
+
         .param-box { background-color: var(--tg-theme-bg-color, #17212b); padding: 10px; border-radius: 8px; margin-top:10px; display:none; flex-direction:column; gap:10px; }
-        .param-header { display:flex; justify-content:space-between; align-items:center; }
-        .param-title { font-weight:bold; color:#5288c1; font-size:12px; }
-        .param-radios { font-size:12px; font-weight:bold; }
-        .param-radios label { margin-left:5px; cursor:pointer; }
+        .param-header { display:flex; justify-content:flex-end; align-items:center; }
+        
+        /* КРАШЕНЫЕ РАДИОКНОПКИ */
+        .param-radios { font-size:12px; font-weight:bold; display: flex; gap: 8px; align-items: center;}
+        .param-radios label { cursor:pointer; display: flex; align-items: center; gap: 3px;}
+        .radio-snat { color: #4CAF50; }
+        .radio-work { color: #FFC107; }
+        .radio-vac { color: #F44336; }
+
         .param-inputs-wrap { display:flex; justify-content:flex-end; gap:8px; align-items:flex-end; }
         .input-group { display:flex; flex-direction:column; align-items:center; }
         .input-label { font-size:10px; color:#7f91a4; margin-bottom:3px; }
+        .hint-text { font-size: 10px; color: #5288c1; margin-right: auto; align-self: center; text-align: left; line-height: 1.2;}
 
         textarea { width: 100%; box-sizing: border-box; padding: 10px; background-color: var(--tg-theme-bg-color, #17212b); color: var(--tg-theme-text-color, #ffffff); border: 1px solid var(--tg-theme-hint-color, #7f91a4); border-radius: 8px; min-height: 80px; resize: none; font-family: inherit; margin-bottom: 15px; }
         
@@ -109,10 +118,9 @@
                 </div>
             </div>
             
-            <!-- НОВЫЙ ДИЗАЙН: Поля для Трейдбана -->
+            <!-- Поля для Трейдбана -->
             <div id="ban-ui" class="param-box">
                 <div class="param-header">
-                    <span id="ban-hint" class="param-title">Точная дата конца тб:</span>
                     <div class="param-radios">
                         <label><input type="radio" name="ban_type" value="ban_exact" checked onchange="toggleBanUI()"> Точная</label>
                         <label><input type="radio" name="ban_type" value="ban_approx" onchange="toggleBanUI()"> Примерная</label>
@@ -120,6 +128,7 @@
                 </div>
                 
                 <div class="param-inputs-wrap" id="ban-exact-inputs">
+                    <span class="hint-text">(точная дата<br>конца тб:)</span>
                     <div class="input-group">
                         <span class="input-label">День</span>
                         <select id="ban-day" class="date-sel"></select>
@@ -130,12 +139,13 @@
                     </div>
                     <div class="input-group">
                         <span class="input-label">Время</span>
-                        <input type="time" id="ban-time" class="snat-input" step="600">
+                        <input type="time" id="ban-time" class="snat-input" step="60">
                     </div>
                     <button class="sq-btn" style="width: 32px; height: 32px; font-size: 14px; margin-bottom: 1px;" onclick="saveBanExact()">💾</button>
                 </div>
                 
                 <div class="param-inputs-wrap" id="ban-approx-inputs" style="display:none;">
+                    <span class="hint-text">(кол-во дней<br>до конца тб:)</span>
                     <div class="input-group">
                         <span class="input-label">Дней</span>
                         <input type="number" id="ban-days" class="tradeban-input" placeholder="0">
@@ -144,17 +154,17 @@
                 </div>
             </div>
 
-            <!-- НОВЫЙ ДИЗАЙН: Поля для Снятых -->
+            <!-- Поля для Снятых -->
             <div id="snat-ui" class="param-box">
                 <div class="param-header">
-                    <span class="param-title">Время, когда тип был снят:</span>
                     <div class="param-radios">
-                        <label><input type="radio" name="snat_type" value="snat" checked> Снят</label>
-                        <label><input type="radio" name="snat_type" value="snat_work"> Ведение</label>
-                        <label><input type="radio" name="snat_type" value="snat_vac"> ВАК</label>
+                        <label class="radio-snat"><input type="radio" name="snat_type" value="snat" checked> Снят</label>
+                        <label class="radio-work"><input type="radio" name="snat_type" value="snat_work"> Ведение</label>
+                        <label class="radio-vac"><input type="radio" name="snat_type" value="snat_vac"> ВАК</label>
                     </div>
                 </div>
                 <div class="param-inputs-wrap">
+                    <span class="hint-text">(когда тип<br>был снят:)</span>
                     <div class="input-group">
                         <span class="input-label">День</span>
                         <select id="snat-day" class="date-sel"></select>
@@ -165,7 +175,7 @@
                     </div>
                     <div class="input-group">
                         <span class="input-label">Время</span>
-                        <input type="time" id="snat-time" class="snat-input" step="600">
+                        <input type="time" id="snat-time" class="snat-input" step="60">
                     </div>
                     <button class="sq-btn" style="width: 32px; height: 32px; font-size: 14px; margin-bottom: 1px;" onclick="saveSnat()">💾</button>
                 </div>
@@ -259,7 +269,6 @@
                         document.getElementById('detail-status').innerHTML = getStatusText(upUser);
                         document.getElementById('detail-hours').innerText = upUser.hours;
                         
-                        // Парсинг зеленого инвентаря
                         let invText = upUser.inv;
                         if(invText && invText.includes('$')) {
                             document.getElementById('detail-inv').innerHTML = `<span style="color: #4CAF50;">${invText}</span>`;
@@ -391,7 +400,6 @@
                 toggleBanUI();
             } else if (val === 'snat') {
                 snatUI.style.display = 'flex';
-                
                 const now = new Date();
                 document.getElementById('snat-day').value = now.getDate();
                 document.getElementById('snat-month').value = now.getMonth() + 1;
@@ -406,7 +414,6 @@
             if(type === 'ban_exact') {
                 document.getElementById('ban-exact-inputs').style.display = 'flex';
                 document.getElementById('ban-approx-inputs').style.display = 'none';
-                document.getElementById('ban-hint').innerHTML = 'Точная дата конца тб:';
                 
                 const now = new Date();
                 document.getElementById('ban-day').value = now.getDate();
@@ -415,7 +422,6 @@
             } else {
                 document.getElementById('ban-exact-inputs').style.display = 'none';
                 document.getElementById('ban-approx-inputs').style.display = 'flex';
-                document.getElementById('ban-hint').innerHTML = 'Кол-во дней до конца тб:';
             }
         }
 
@@ -500,7 +506,6 @@
             document.getElementById('detail-status').innerHTML = statusText;
             document.getElementById('detail-hours').innerText = currentUser.hours;
             
-            // Раскрашиваем инвентарь в зеленый, если там есть деньги
             let invText = currentUser.inv;
             if(invText && invText.includes('$')) {
                 document.getElementById('detail-inv').innerHTML = `<span style="color: #4CAF50;">${invText}</span>`;
@@ -513,10 +518,10 @@
                 const banUI = document.getElementById('ban-ui');
                 const snatUI = document.getElementById('snat-ui');
                 
+                sel.value = currentUser.tb_status && currentUser.tb_status !== "none" ? currentUser.tb_status : "none";
                 banUI.style.display = 'none'; snatUI.style.display = 'none';
                 
                 if (currentUser.tb_status.startsWith('ban_')) {
-                    sel.value = 'ban';
                     banUI.style.display = 'flex';
                     document.querySelector(`input[name="ban_type"][value="${currentUser.tb_status}"]`).checked = true;
                     toggleBanUI();
@@ -534,8 +539,6 @@
                     if (currentUser.tb_time) {
                         fillInputsFromUnix(currentUser.tb_time - 7*86400, 'snat');
                     }
-                } else {
-                    sel.value = currentUser.tb_status && currentUser.tb_status !== "none" ? currentUser.tb_status : "none";
                 }
                 document.getElementById('detail-note').value = currentUser.note;
             }

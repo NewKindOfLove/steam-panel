@@ -21,7 +21,7 @@
         
         .status-badge { position: absolute; bottom: 0; right: 0; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--tg-theme-secondary-bg-color, #242f3d); display: none; }
         .bg-online { background-color: #4CAF50; display: block; } 
-        .bg-ingame { background-color: #7FFF00; display: block; box-shadow: 0 0 5px #7FFF00;} 
+        .bg-ingame { background-color: #7FFF00; display: block; box-shadow: 0 0 8px #7FFF00;} 
         .bg-away { background-color: #FFC107; display: block; }
         
         .user-info-short { flex-grow: 1; font-weight: bold; font-size: 16px; margin-right: 30px;} 
@@ -143,6 +143,14 @@
         let showBells = localStorage.getItem('showBells') !== 'false';
         document.getElementById('toggle-bells').checked = showBells;
 
+        let isEditing = false;
+        document.addEventListener('focusin', (e) => {
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) isEditing = true;
+        });
+        document.addEventListener('focusout', (e) => {
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) setTimeout(() => isEditing = false, 200);
+        });
+
         const urlParams = new URLSearchParams(window.location.search);
         const TOKEN = urlParams.get('t');
         const DB_PATH = urlParams.get('d');
@@ -155,7 +163,7 @@
         }
 
         async function fetchLiveDB(manual = false) {
-            if (!DB_PATH) return;
+            if (!DB_PATH || isEditing) return; 
             try {
                 const r = await fetch(`https://api.telegra.ph/getPage/${DB_PATH}?return_content=true&_=${Date.now()}`);
                 const data = await r.json();
@@ -166,22 +174,19 @@
                 }
                 usersData = JSON.parse(jsonStr || "[]");
                 
-                // ВОТ ОН - ИДЕАЛЬНЫЙ ФИКС!
                 if(document.getElementById('list-view').classList.contains('active-view')) {
                     filterList(); 
                 } else if (currentUser) {
-                    // ЕСЛИ КАРТОЧКА ОТКРЫТА, ТОЧЕЧНО МЕНЯЕМ ТОЛЬКО ТЕКСТ. ИНПУТЫ НЕ ТРОГАЕМ ВООБЩЕ!
                     const upUser = usersData.find(u => u.id === currentUser.id);
                     if (upUser) {
-                        currentUser = upUser; // обновляем ссылку на юзера в фоне
+                        currentUser = upUser; 
                         document.getElementById('detail-status').innerHTML = getStatusText(upUser);
                         document.getElementById('detail-hours').innerText = upUser.hours;
                         document.getElementById('detail-inv').innerText = upUser.inv;
                     } else {
-                        showList(); // Юзера удалили из базы
+                        showList(); 
                     }
                 }
-                
                 if (manual) showToast("Данные обновлены ✅");
             } catch(e) {}
         }
@@ -189,10 +194,7 @@
         setInterval(fetchLiveDB, 3000);
         fetchLiveDB();
 
-        function manualRefresh() {
-            document.getElementById('new-user-input').value = ""; 
-            fetchLiveDB(true);
-        }
+        function manualRefresh() { document.getElementById('new-user-input').value = ""; fetchLiveDB(true); }
 
         async function sendSilentCommand(cmdObj) {
             showToast("Сохранение...");
@@ -239,17 +241,21 @@
                         let d = Math.floor(timeLeft / 86400);
                         let h = Math.floor((timeLeft % 86400) / 3600);
                         tbText = `<div class="tb-status-text text-ban">⏳ Трейдбан: ${d}д ${h}ч</div>`;
-                    } else {
-                        tbText = `<div class="tb-status-text text-ban">⏳ Истекает...</div>`;
-                    }
-                } else if (user.tb_status === "ready") {
+                    } else { tbText = `<div class="tb-status-text text-ban">⏳ Истекает...</div>`; }
+                } else if (user.tb_status === "ready") { 
                     tbText = `<div class="tb-status-text text-ready">🔓 Можно снимать</div>`;
-                } else if (user.tb_status === "snat") {
-                    tbText = `<div class="tb-status-text text-ready">✅ Снят</div>`;
-                } else if (user.tb_status === "work") {
-                    tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#FFC107;">🤝 Ведение</span></div>`;
-                } else if (user.tb_status === "vac") {
-                    tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#F44336;">❌ ВАК</span></div>`;
+                } else if (['snat', 'work', 'vac'].includes(user.tb_status)) {
+                    let timeLeft = user.tb_time - Math.floor(Date.now()/1000);
+                    let timerStr = timeLeft > 0 ? `(⏳ ${Math.floor(timeLeft / 86400)}д ${Math.floor((timeLeft % 86400) / 3600)}ч)` : "(⏳ Истекает...)";
+                    let timerHtml = `<span style="color:#7f91a4; font-weight:normal; margin-left: 4px; font-size:10px;">${timerStr}</span>`;
+
+                    if (user.tb_status === "snat") {
+                        tbText = `<div class="tb-status-text"><span class="text-ready">✅ Снят</span>${timerHtml}</div>`;
+                    } else if (user.tb_status === "work") {
+                        tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#FFC107;">🤝 Ведение</span>${timerHtml}</div>`;
+                    } else if (user.tb_status === "vac") {
+                        tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#F44336;">🛑 ВАК</span>${timerHtml}</div>`;
+                    }
                 } else if (user.tb_status === "unbanned") {
                     tbText = `<div class="tb-status-text text-unbanned">💸 Разбанился(был снят)!</div>`;
                 }
@@ -267,7 +273,6 @@
             });
         }
 
-        // --- ПОИСК И ДОБАВЛЕНИЕ ---
         function filterList() {
             const query = document.getElementById('new-user-input').value.trim().toLowerCase();
             if (!query) { renderList(usersData); return; }
@@ -276,24 +281,19 @@
         }
 
         document.getElementById("new-user-input").addEventListener("input", filterList);
-        
         document.getElementById("new-user-input").addEventListener("keydown", e => { 
             if (e.key === "Enter") {
                 const input = document.getElementById('new-user-input').value.trim();
                 if (!input) return;
-                
                 const isSteam = input.includes("steamcommunity.com") || /^\d{17}$/.test(input);
-                if (!isSteam) {
-                    showToast("❌ Введи Steam ссылку или ID64!");
-                    return;
-                }
+                if (!isSteam) { showToast("❌ Введи Steam ссылку или ID64!"); return; }
                 sendSilentCommand({ action: "add_user", url: input });
                 showToast("Добавляю... Юзер скоро появится в списке."); 
                 document.getElementById('new-user-input').value = "";
+                document.getElementById('new-user-input').blur();
             }
         });
 
-        // --- ОБРАБОТКА (СНЯТИЕ / ТРЕЙДБАН) ---
         function handleTradebanChange() {
             const val = document.getElementById('tradeban-select').value;
             const banRow = document.getElementById('tradeban-inputs-row');
@@ -307,6 +307,16 @@
                 document.getElementById('tradeban-days').focus();
             } else if (['snat', 'work', 'vac'].includes(val)) {
                 snatRow.style.display = 'flex';
+                
+                const now = new Date();
+                const d = String(now.getDate()).padStart(2, '0');
+                const m = String(now.getMonth() + 1).padStart(2, '0');
+                const h = String(now.getHours()).padStart(2, '0');
+                const min = String(now.getMinutes()).padStart(2, '0');
+                
+                document.getElementById('snat-date').value = `${d}.${m}`;
+                document.getElementById('snat-time').value = `${h}:${min}`;
+                
                 document.getElementById('snat-date').focus();
             } else {
                 saveTradeban(val, 0);
@@ -328,42 +338,32 @@
             
             const parts = dateStr.split('.');
             if (parts.length !== 2) return showToast("Формат даты: ДД.ММ");
-            
-            const d = parseInt(parts[0]);
-            const m = parseInt(parts[1]);
-            if(isNaN(d) || isNaN(m)) return showToast("Неверная дата!");
-            
+            const d = parseInt(parts[0]); const m = parseInt(parts[1]);
             const tParts = timeStr.split(':');
-            const h = parseInt(tParts[0]);
-            const min = parseInt(tParts[1]);
-            if(isNaN(h) || isNaN(min)) return showToast("Неверное время!");
+            const h = parseInt(tParts[0]); const min = parseInt(tParts[1]);
             
             const now = new Date();
-            const eventDate = new Date(now.getFullYear(), m - 1, d, h, min);
+            let targetYear = now.getFullYear();
+            if (now.getMonth() === 11 && m === 1) targetYear++; 
             
-            // Ровно через 7 дней
+            const eventDate = new Date(targetYear, m - 1, d, h, min);
+            
             const unlockTime = Math.floor(eventDate.getTime() / 1000) + 7 * 86400;
             const status = document.getElementById('tradeban-select').value;
             saveTradeban(status, unlockTime);
         }
 
-        document.getElementById("tradeban-days").addEventListener("keydown", e => { if (e.key === "Enter") saveTradebanTimer(); });
-        document.getElementById("tradeban-hours").addEventListener("keydown", e => { if (e.key === "Enter") saveTradebanTimer(); });
-        document.getElementById("snat-date").addEventListener("keydown", e => { if (e.key === "Enter") saveSnatTimer(); });
-        document.getElementById("snat-time").addEventListener("keydown", e => { if (e.key === "Enter") saveSnatTimer(); });
+        document.getElementById("tradeban-days").addEventListener("keydown", e => { if (e.key === "Enter") { saveTradebanTimer(); document.getElementById("tradeban-days").blur();} });
+        document.getElementById("tradeban-hours").addEventListener("keydown", e => { if (e.key === "Enter") { saveTradebanTimer(); document.getElementById("tradeban-hours").blur();} });
+        document.getElementById("snat-date").addEventListener("keydown", e => { if (e.key === "Enter") { saveSnatTimer(); document.getElementById("snat-date").blur();} });
+        document.getElementById("snat-time").addEventListener("keydown", e => { if (e.key === "Enter") { saveSnatTimer(); document.getElementById("snat-time").blur();} });
 
         function saveTradeban(status, timeStamp) {
             if (!currentUser) return;
             currentUser.tb_status = status;
             currentUser.tb_time = timeStamp;
-            
-            sendSilentCommand({ 
-                action: "update_tradeban", 
-                steam_id: currentUser.id, 
-                tb_status: status, 
-                tb_time: timeStamp 
-            });
-            showToast("Статус обработки сохранен ✅");
+            sendSilentCommand({ action: "update_tradeban", steam_id: currentUser.id, tb_status: status, tb_time: timeStamp });
+            showToast("Сохранено ✅");
             document.getElementById('tradeban-inputs-row').style.display = 'none';
             document.getElementById('snat-inputs-row').style.display = 'none';
         }
@@ -375,60 +375,55 @@
         function showList() { switchView('list-view'); currentUser = null; document.getElementById('new-user-input').value = ""; filterList();}
         function openSettings() { switchView('settings-view'); }
 
-        // ОТКРЫТИЕ КАРТОЧКИ (ПЕРВОНАЧАЛЬНАЯ ОТРИСОВКА)
-        function showDetail(id) {
+        function showDetail(id, silentUpdate = false) {
             currentUser = usersData.find(u => u.id === id); 
             if(!currentUser) return showList();
-            switchView('detail-view');
+            if(!silentUpdate) switchView('detail-view');
             
             document.getElementById('detail-avatar').src = currentUser.avatar || 'https://steamuserimages-a.akamaihd.net/ugc/885384897182110030/F095539864AC9E94AE5236E04C8CA7C2725BCEEA/';
             document.getElementById('detail-link').href = currentUser.url;
             document.getElementById('detail-name').innerText = currentUser.name;
             document.getElementById('detail-id').innerText = currentUser.id;
             
-            document.getElementById('detail-status').innerHTML = getStatusText(currentUser);
+            let statusText = currentUser.game ? `🎮 ${currentUser.game}` : (currentUser.status === 1 ? "🟢 В сети" : (currentUser.status === 0 ? "🔴 Оффлайн" : "🟡 Отошел"));
+            document.getElementById('detail-status').innerHTML = statusText;
             document.getElementById('detail-hours').innerText = currentUser.hours;
             document.getElementById('detail-inv').innerText = currentUser.inv;
             
-            // Настройка селектора и полей
-            const sel = document.getElementById('tradeban-select');
-            const banRow = document.getElementById('tradeban-inputs-row');
-            const snatRow = document.getElementById('snat-inputs-row');
-            
-            sel.value = currentUser.tb_status && currentUser.tb_status !== "none" ? currentUser.tb_status : "none";
-            banRow.style.display = 'none';
-            snatRow.style.display = 'none';
-            
-            if (sel.value === "ban" && currentUser.tb_time) {
-                banRow.style.display = 'flex';
-                let tl = currentUser.tb_time - Math.floor(Date.now()/1000);
-                if(tl > 0) {
-                    document.getElementById('tradeban-days').value = Math.floor(tl / 86400);
-                    document.getElementById('tradeban-hours').value = Math.floor((tl % 86400) / 3600);
-                }
-            } else if (['snat', 'work', 'vac'].includes(sel.value) && currentUser.tb_time) {
-                snatRow.style.display = 'flex';
-                const eventDate = new Date((currentUser.tb_time - 7 * 86400) * 1000);
-                const d = String(eventDate.getDate()).padStart(2, '0');
-                const m = String(eventDate.getMonth() + 1).padStart(2, '0');
-                const h = String(eventDate.getHours()).padStart(2, '0');
-                const min = String(eventDate.getMinutes()).padStart(2, '0');
+            if (!silentUpdate) {
+                const sel = document.getElementById('tradeban-select');
+                const banRow = document.getElementById('tradeban-inputs-row');
+                const snatRow = document.getElementById('snat-inputs-row');
+                sel.value = currentUser.tb_status && currentUser.tb_status !== "none" ? currentUser.tb_status : "none";
+                banRow.style.display = 'none';
+                snatRow.style.display = 'none';
                 
-                document.getElementById('snat-date').value = `${d}.${m}`;
-                document.getElementById('snat-time').value = `${h}:${min}`;
-            } else {
-                document.getElementById('tradeban-days').value = "";
-                document.getElementById('tradeban-hours').value = "";
-                document.getElementById('snat-date').value = "";
-                document.getElementById('snat-time').value = "";
+                if (sel.value === "ban" && currentUser.tb_time) {
+                    banRow.style.display = 'flex';
+                    let tl = currentUser.tb_time - Math.floor(Date.now()/1000);
+                    if(tl > 0) {
+                        document.getElementById('tradeban-days').value = Math.floor(tl / 86400);
+                        document.getElementById('tradeban-hours').value = Math.floor((tl % 86400) / 3600);
+                    }
+                } else if (['snat', 'work', 'vac'].includes(sel.value) && currentUser.tb_time) {
+                    snatRow.style.display = 'flex';
+                    const eventDate = new Date((currentUser.tb_time - 7 * 86400) * 1000);
+                    const d = String(eventDate.getDate()).padStart(2, '0');
+                    const m = String(eventDate.getMonth() + 1).padStart(2, '0');
+                    const h = String(eventDate.getHours()).padStart(2, '0');
+                    const min = String(eventDate.getMinutes()).padStart(2, '0');
+                    document.getElementById('snat-date').value = `${d}.${m}`;
+                    document.getElementById('snat-time').value = `${h}:${min}`;
+                } else {
+                    document.getElementById('tradeban-days').value = ""; document.getElementById('tradeban-hours').value = "";
+                    document.getElementById('snat-date').value = ""; document.getElementById('snat-time').value = "";
+                }
+                document.getElementById('detail-note').value = currentUser.note;
             }
-
-            document.getElementById('detail-note').value = currentUser.note;
         }
 
         function saveSettings() { showBells = document.getElementById('toggle-bells').checked; localStorage.setItem('showBells', showBells); filterList(); }
-
-        document.getElementById("detail-note").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveNote(); } });
+        document.getElementById("detail-note").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveNote(); document.getElementById("detail-note").blur();} });
 
         function toggleNotif(event, id) {
             event.stopPropagation();

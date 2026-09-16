@@ -43,12 +43,12 @@
         
         select { background-color: var(--tg-theme-bg-color, #17212b); color: var(--tg-theme-text-color, #ffffff); border: 1px solid var(--tg-theme-hint-color, #7f91a4); border-radius: 5px; padding: 5px; outline: none; font-weight: bold; font-size: 14px;}
         .date-sel { width: 55px; text-align: center; }
+        .tradeban-input { width: 55px; padding: 5px; border-radius: 5px; background-color: var(--tg-theme-bg-color, #17212b); color: white; border: 1px solid var(--tg-theme-hint-color, #7f91a4); outline: none; text-align: center; font-size: 14px;}
         .snat-input { width: 75px; padding: 4px; border-radius: 5px; background-color: var(--tg-theme-bg-color, #17212b); color: white; border: 1px solid var(--tg-theme-hint-color, #7f91a4); outline: none; text-align: center; font-size: 14px;}
         
         input[type="time"]::-webkit-calendar-picker-indicator { display: none; -webkit-appearance: none; }
         input[type="time"] { -moz-appearance: textfield; }
 
-        /* ИДЕАЛЬНЫЙ ДИЗАЙН ПАРАМЕТРОВ */
         .param-box { background-color: var(--tg-theme-bg-color, #17212b); padding: 12px; border-radius: 8px; margin-top:10px; display:none; flex-direction:column; gap:12px; border: 1px solid #303f50; }
         .param-header { display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid #303f50; padding-bottom: 8px; }
         .param-title { font-weight:bold; color:#5288c1; font-size:13px; max-width: 120px; line-height: 1.2; }
@@ -272,7 +272,7 @@
                         document.getElementById('detail-hours').innerText = upUser.hours;
                         
                         let invText = upUser.inv;
-                        if(invText && invText.includes('$')) {
+                        if(invText && (invText.includes('$') || invText.includes('Открыт'))) {
                             document.getElementById('detail-inv').innerHTML = `<span style="color: #4CAF50;">${invText}</span>`;
                         } else {
                             document.getElementById('detail-inv').innerText = invText;
@@ -401,8 +401,8 @@
             } else if (val === 'snat') {
                 snatUI.style.display = 'flex';
                 const now = new Date();
-                document.getElementById('snat-day').value = now.getDate();
-                document.getElementById('snat-month').value = now.getMonth() + 1;
+                document.getElementById('snat-day').value = String(now.getDate());
+                document.getElementById('snat-month').value = String(now.getMonth() + 1);
                 document.getElementById('snat-time').value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
             } else {
                 saveTradebanState(val, 0);
@@ -417,8 +417,8 @@
                 document.getElementById('ban-hint').innerHTML = '(точная дата конца тб:)';
                 
                 const now = new Date();
-                document.getElementById('ban-day').value = now.getDate();
-                document.getElementById('ban-month').value = now.getMonth() + 1;
+                document.getElementById('ban-day').value = String(now.getDate());
+                document.getElementById('ban-month').value = String(now.getMonth() + 1);
                 document.getElementById('ban-time').value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
             } else {
                 document.getElementById('ban-exact-inputs').style.display = 'none';
@@ -460,7 +460,7 @@
         function saveSnat() {
             const unix = getUnixFromInputs('snat');
             if(!unix) return showToast("Укажи время!");
-            const unlockTime = unix + 7 * 86400; // Ровно +7 дней
+            const unlockTime = unix + 7 * 86400; 
             const status = document.querySelector('input[name="snat_type"]:checked').value;
             saveTradebanState(status, unlockTime);
         }
@@ -480,8 +480,8 @@
 
         function fillInputsFromUnix(unix, prefix) {
             const d = new Date(unix * 1000);
-            document.getElementById(`${prefix}-day`).value = d.getDate();
-            document.getElementById(`${prefix}-month`).value = d.getMonth() + 1;
+            document.getElementById(`${prefix}-day`).value = String(d.getDate());
+            document.getElementById(`${prefix}-month`).value = String(d.getMonth() + 1);
             document.getElementById(`${prefix}-time`).value = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
         }
 
@@ -502,7 +502,8 @@
             document.getElementById('detail-name').innerText = currentUser.name;
             document.getElementById('detail-id').innerText = currentUser.id;
             
-            let addedStr = currentUser.added_date ? `Добавлен: ${currentUser.added_date}` : "Добавлен: Ранее";
+            // Фикс двойного "Добавлен"
+            let addedStr = currentUser.added_date ? currentUser.added_date : "Ранее";
             document.getElementById('detail-added-date').innerText = addedStr;
             
             let statusText = currentUser.game ? `🎮 ${currentUser.game}` : (currentUser.status === 1 ? "🟢 В сети" : (currentUser.status === 0 ? "🔴 Оффлайн" : "🟡 Отошел"));
@@ -510,7 +511,7 @@
             document.getElementById('detail-hours').innerText = currentUser.hours;
             
             let invText = currentUser.inv;
-            if(invText && invText.includes('$')) {
+            if(invText && (invText.includes('$') || invText.includes('Открыт'))) {
                 document.getElementById('detail-inv').innerHTML = `<span style="color: #4CAF50;">${invText}</span>`;
             } else {
                 document.getElementById('detail-inv').innerText = invText;

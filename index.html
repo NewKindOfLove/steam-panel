@@ -36,6 +36,9 @@
         .card-header { display: flex; flex-direction: column; align-items: center; text-align: center; margin-bottom: 20px; }
         .avatar-big { width: 100px; height: 100px; border-radius: 50%; margin-bottom: 10px; border: 3px solid var(--tg-theme-button-color, #5288c1); object-fit: cover; }
         .card-name { font-size: 22px; font-weight: bold; margin-bottom: 5px; }
+        .card-id-text { font-size: 13px; color: var(--tg-theme-hint-color); margin-bottom: 3px; }
+        .card-date-text { font-size: 11px; color: #7f91a4; font-style: italic; }
+
         .card-stats { background-color: var(--tg-theme-secondary-bg-color, #242f3d); padding: 15px; border-radius: 10px; margin-bottom: 15px; }
         .stat-row { display: flex; justify-content: space-between; margin-bottom: 8px; align-items: center;} .stat-row:last-child { margin-bottom: 0; } .stat-value { font-weight: bold; }
         
@@ -44,14 +47,12 @@
         .tradeban-input { width: 55px; padding: 5px; border-radius: 5px; background-color: var(--tg-theme-bg-color, #17212b); color: white; border: 1px solid var(--tg-theme-hint-color, #7f91a4); outline: none; text-align: center; font-size: 14px;}
         .snat-input { width: 65px; padding: 4px; border-radius: 5px; background-color: var(--tg-theme-bg-color, #17212b); color: white; border: 1px solid var(--tg-theme-hint-color, #7f91a4); outline: none; text-align: center; font-size: 14px;}
         
-        /* УБИРАЕМ ИКОНКУ ЧАСОВ ИЗ INPUT TIME */
         input[type="time"]::-webkit-calendar-picker-indicator { display: none; -webkit-appearance: none; }
         input[type="time"] { -moz-appearance: textfield; }
 
         .param-box { background-color: var(--tg-theme-bg-color, #17212b); padding: 10px; border-radius: 8px; margin-top:10px; display:none; flex-direction:column; gap:10px; }
         .param-header { display:flex; justify-content:flex-end; align-items:center; }
         
-        /* КРАШЕНЫЕ РАДИОКНОПКИ */
         .param-radios { font-size:12px; font-weight:bold; display: flex; gap: 8px; align-items: center;}
         .param-radios label { cursor:pointer; display: flex; align-items: center; gap: 3px;}
         .radio-snat { color: #4CAF50; }
@@ -97,7 +98,8 @@
         <div class="card-header">
             <a id="detail-link" href="#" target="_blank"><img id="detail-avatar" class="avatar-big" src=""></a>
             <div class="card-name" id="detail-name">Имя</div>
-            <div style="font-size: 14px; color: var(--tg-theme-hint-color);">ID: <span id="detail-id"></span></div>
+            <div class="card-id-text">ID: <span id="detail-id"></span></div>
+            <div class="card-date-text" id="detail-added-date"></div>
         </div>
         
         <div class="card-stats">
@@ -148,7 +150,7 @@
                     <span class="hint-text">(кол-во дней<br>до конца тб:)</span>
                     <div class="input-group">
                         <span class="input-label">Дней</span>
-                        <input type="number" id="ban-days" class="tradeban-input" placeholder="0">
+                        <select id="ban-days" class="date-sel" style="width: 55px;"></select>
                     </div>
                     <button class="sq-btn" style="width: 32px; height: 32px; font-size: 14px; margin-bottom: 1px;" onclick="saveBanApprox()">💾</button>
                 </div>
@@ -219,13 +221,16 @@
         document.getElementById('toggle-important').checked = importantOnly;
 
         function populateDateSelects() {
-            let days = '', months = '';
+            let days = '', months = '', days15 = '';
             for(let i=1; i<=31; i++) days += `<option value="${i}">${String(i).padStart(2,'0')}</option>`;
             for(let i=1; i<=12; i++) months += `<option value="${i}">${String(i).padStart(2,'0')}</option>`;
+            for(let i=1; i<=15; i++) days15 += `<option value="${i}">${i}</option>`;
+            
             document.getElementById('ban-day').innerHTML = days;
             document.getElementById('ban-month').innerHTML = months;
             document.getElementById('snat-day').innerHTML = days;
             document.getElementById('snat-month').innerHTML = months;
+            document.getElementById('ban-days').innerHTML = days15;
         }
         populateDateSelects();
 
@@ -287,7 +292,7 @@
         function manualRefresh() { document.getElementById('new-user-input').value = ""; fetchLiveDB(true); }
 
         async function sendSilentCommand(cmdObj) {
-            showToast("Сохранение...");
+            showToast("Ожидайте...");
             try {
                 const r = await fetch(`https://api.telegra.ph/getPage/${CMD_PATH}?return_content=true&_=${Date.now()}`);
                 const data = await r.json();
@@ -380,13 +385,11 @@
                 const isSteam = input.includes("steamcommunity.com") || /^\d{17}$/.test(input);
                 if (!isSteam) { showToast("❌ Введи Steam ссылку или ID64!"); return; }
                 sendSilentCommand({ action: "add_user", url: input });
-                showToast("Добавляю... Юзер скоро появится в списке."); 
                 document.getElementById('new-user-input').value = "";
                 document.getElementById('new-user-input').blur();
             }
         });
 
-        // --- ЛОГИКА ПАРАМЕТРОВ ---
         function handleTradebanChange() {
             const val = document.getElementById('tradeban-select').value;
             const banUI = document.getElementById('ban-ui');
@@ -451,7 +454,7 @@
 
         function saveBanApprox() {
             const days = parseInt(document.getElementById('ban-days').value) || 0;
-            if(days <= 0) return showToast("Введи количество дней!");
+            if(days <= 0) return showToast("Выбери дни!");
             const unlockTime = Math.floor(Date.now() / 1000) + (days * 86400);
             saveTradebanState('ban_approx', unlockTime);
         }
@@ -465,7 +468,6 @@
         }
 
         document.getElementById("ban-time").addEventListener("keydown", e => { if (e.key === "Enter") { saveBanExact(); document.getElementById("ban-time").blur();} });
-        document.getElementById("ban-days").addEventListener("keydown", e => { if (e.key === "Enter") { saveBanApprox(); document.getElementById("ban-days").blur();} });
         document.getElementById("snat-time").addEventListener("keydown", e => { if (e.key === "Enter") { saveSnat(); document.getElementById("snat-time").blur();} });
 
         function saveTradebanState(status, timeStamp) {
@@ -502,6 +504,9 @@
             document.getElementById('detail-name').innerText = currentUser.name;
             document.getElementById('detail-id').innerText = currentUser.id;
             
+            let addedStr = currentUser.added_date ? `Добавлен: ${currentUser.added_date}` : "Добавлен: Ранее";
+            document.getElementById('detail-added-date').innerText = addedStr;
+            
             let statusText = currentUser.game ? `🎮 ${currentUser.game}` : (currentUser.status === 1 ? "🟢 В сети" : (currentUser.status === 0 ? "🔴 Оффлайн" : "🟡 Отошел"));
             document.getElementById('detail-status').innerHTML = statusText;
             document.getElementById('detail-hours').innerText = currentUser.hours;
@@ -530,7 +535,7 @@
                         fillInputsFromUnix(currentUser.tb_time, 'ban');
                     } else if (currentUser.tb_status === 'ban_approx' && currentUser.tb_time) {
                         let tl = currentUser.tb_time - Math.floor(Date.now()/1000);
-                        document.getElementById('ban-days').value = tl > 0 ? Math.ceil(tl / 86400) : "";
+                        document.getElementById('ban-days').value = tl > 0 ? Math.ceil(tl / 86400) : "1";
                     }
                 } else if (currentUser.tb_status.startsWith('snat')) {
                     sel.value = 'snat';

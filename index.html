@@ -10,8 +10,10 @@
         .container { padding: 15px; display: none; } .active-view { display: block; }
         .top-bar { display: flex; gap: 10px; margin-bottom: 15px; }
         .top-bar input { flex-grow: 1; padding: 10px; border-radius: 8px; background-color: var(--tg-theme-secondary-bg-color, #242f3d); color: var(--tg-theme-text-color, #ffffff); border: 1px solid var(--tg-theme-hint-color, #7f91a4); outline: none; }
-        .sq-btn { width: 42px; height: 42px; border-radius: 8px; border: none; display: flex; align-items: center; justify-content: center; font-size: 18px; cursor: pointer; background-color: var(--tg-theme-button-color, #5288c1); color: var(--tg-theme-button-text-color, #ffffff); }
-        .sq-btn:active { opacity: 0.8; } .btn-secondary { background-color: var(--tg-theme-secondary-bg-color, #242f3d); color: var(--tg-theme-text-color); } .btn-danger { background-color: #e53935; color: white; }
+        .sq-btn { width: 42px; height: 42px; border-radius: 8px; border: none; display: flex; align-items: center; justify-content: center; font-size: 18px; cursor: pointer; background-color: var(--tg-theme-button-color, #5288c1); color: var(--tg-theme-button-text-color, #ffffff); transition: 0.2s; }
+        .sq-btn:active { opacity: 0.7; transform: scale(0.95); } 
+        .btn-secondary { background-color: var(--tg-theme-secondary-bg-color, #242f3d); color: var(--tg-theme-text-color); } 
+        .btn-danger { background-color: #e53935; color: white; }
         
         .user-list { display: flex; flex-direction: column; gap: 10px; }
         .user-item { display: flex; align-items: center; padding: 10px; background-color: var(--tg-theme-secondary-bg-color, #242f3d); border-radius: 10px; cursor: pointer; position: relative; min-height: 50px; }
@@ -23,11 +25,12 @@
         .bg-ingame { background-color: #7FFF00; display: block; box-shadow: 0 0 8px #7FFF00;} 
         .bg-away { background-color: #FFC107; display: block; }
         
-        .user-info-short { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; overflow: hidden; margin-right: 20px;} 
+        .user-info-short { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; overflow: hidden; margin-right: 25px;} 
         .user-name-text { font-size: 15px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .user-inv-text { font-size: 11px; font-weight: normal; margin-top: 3px; color: #a8b5c2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .user-inv-text { font-size: 12px; font-weight: bold; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         
-        .bell-icon { font-size: 18px; padding: 5px; cursor: pointer; position: absolute; top: 50%; transform: translateY(-50%); right: 10px; }
+        /* КОЛОКОЛЬЧИК В ПРАВОМ ВЕРХНЕМ УГЛУ */
+        .bell-icon { font-size: 16px; padding: 5px; cursor: pointer; position: absolute; top: 4px; right: 4px; }
         
         .tb-status-text { position: absolute; bottom: 8px; right: 12px; font-size: 11px; font-weight: bold; letter-spacing: 0.3px; }
         .text-ready { color: #4CAF50; }
@@ -77,7 +80,7 @@
     <div class="container active-view" id="list-view">
         <div class="top-bar">
             <input type="text" id="new-user-input" placeholder="Поиск (Имя или ID)">
-            <button class="sq-btn" onclick="manualRefresh()">🔄</button>
+            <button id="btn-global-refresh" class="sq-btn btn-secondary" onclick="manualRefresh()">🔄</button>
         </div>
         <div style="display:flex; justify-content:space-between; margin-bottom: 15px; gap: 8px;">
             <select id="sort-select" style="flex-grow:1; font-size: 13px;" onchange="filterList()">
@@ -85,7 +88,7 @@
                 <option value="inv_desc">По цене инвентаря ($)</option>
                 <option value="tb_asc">По разбану ⏳</option>
             </select>
-            <button class="sq-btn btn-secondary" style="width:auto; padding:0 12px; font-size:13px; font-weight:bold; color: #4CAF50;" onclick="switchView('checker-view')">🔍 Чекер</button>
+            <button class="sq-btn btn-secondary" style="width:auto; padding:0 12px; font-size:13px; font-weight:bold;" onclick="switchView('checker-view')">🔍 Чекер</button>
             <button class="sq-btn btn-secondary" style="font-size:16px;" onclick="switchView('settings-view')">⚙️</button>
         </div>
         <div class="user-list" id="users-container">Ожидание данных...</div>
@@ -100,7 +103,7 @@
         </div>
         <div class="top-bar" style="margin-bottom: 20px;">
             <input type="text" id="checker-input" placeholder="Steam ссылка или ID">
-            <button class="sq-btn" style="background-color:#4CAF50;" onclick="runChecker()">🔍</button>
+            <button id="btn-checker-search" class="sq-btn btn-secondary" onclick="runChecker()">🔍</button>
         </div>
         <div id="checker-results" class="user-list">
             <div style="text-align:center; color:#7f91a4; font-size: 14px; margin-top:20px;">Введи ссылку, чтобы проверить аккаунт.</div>
@@ -111,7 +114,10 @@
     <div class="container" id="detail-view">
         <div class="nav-bar">
             <button class="sq-btn btn-secondary" onclick="showList()">◀</button>
-            <button class="sq-btn btn-danger" onclick="deleteUser()">🗑</button>
+            <div style="display:flex; gap: 5px;">
+                <button class="sq-btn btn-danger" onclick="deleteUser()">❌</button>
+                <button id="btn-detail-refresh" class="sq-btn btn-secondary" onclick="refreshCurrentUser()">🔄</button>
+            </div>
         </div>
         <div class="card-header">
             <a id="detail-link" href="#" target="_blank"><img id="detail-avatar" class="avatar-big" src=""></a>
@@ -139,7 +145,7 @@
             
             <div id="ban-ui" class="param-box">
                 <div class="param-header">
-                    <span id="ban-hint" class="param-title">(точная дата конца тб:)</span>
+                    <span id="ban-hint" class="param-title">Точная дата конца тб:</span>
                     <div class="param-radios">
                         <label><input type="radio" name="ban_type" value="ban_exact" checked onchange="toggleBanUI()"> Точная</label>
                         <label><input type="radio" name="ban_type" value="ban_approx" onchange="toggleBanUI()"> Примерная</label>
@@ -159,7 +165,7 @@
 
             <div id="snat-ui" class="param-box">
                 <div class="param-header">
-                    <span class="param-title">(время, когда тип был снят:)</span>
+                    <span class="param-title">Время, когда тип был снят:</span>
                     <div class="param-radios">
                         <label class="radio-snat"><input type="radio" name="snat_type" value="snat" checked> Снят</label>
                         <label class="radio-work"><input type="radio" name="snat_type" value="snat_work"> Ведение</label>
@@ -237,6 +243,11 @@
             toast.innerText = msg; toast.className = "show";
             setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 2500);
         }
+        
+        function setButtonLoading(btnId, isLoading, originalIcon = '🔄') {
+            const btn = document.getElementById(btnId);
+            if(btn) btn.innerText = isLoading ? '⏳' : originalIcon;
+        }
 
         async function fetchLiveDB(manual = false) {
             if (!DB_PATH || isEditing) return; 
@@ -270,12 +281,19 @@
         setInterval(fetchLiveDB, 3000);
         fetchLiveDB();
 
-        function manualRefresh() { document.getElementById('new-user-input').value = ""; fetchLiveDB(true); }
+        function manualRefresh() { 
+            document.getElementById('new-user-input').value = ""; 
+            setButtonLoading('btn-global-refresh', true, '🔄');
+            sendSilentCommand({ action: "force_update" }, () => setButtonLoading('btn-global-refresh', false, '🔄'));
+        }
+        
+        function refreshCurrentUser() {
+            if (!currentUser) return;
+            setButtonLoading('btn-detail-refresh', true, '🔄');
+            sendSilentCommand({ action: "force_update_single", steam_id: currentUser.id }, () => setButtonLoading('btn-detail-refresh', false, '🔄'));
+        }
 
-        async function sendSilentCommand(cmdObj) {
-            if(cmdObj.action === "checker_scan") showToast("Сканирую игры (≈5 сек)...");
-            else showToast("Обработка...");
-            
+        async function sendSilentCommand(cmdObj, callback = null) {
             try {
                 const r = await fetch(`https://api.telegra.ph/getPage/${CMD_PATH}?return_content=true&_=${Date.now()}`);
                 const data = await r.json();
@@ -298,16 +316,27 @@
                 formData.append("content", JSON.stringify([{"tag":"p", "children": chunks.length ? chunks : ["[]"]}]));
                 
                 await fetch(`https://api.telegra.ph/editPage/${CMD_PATH}`, { method: "POST", body: formData });
-                setTimeout(() => fetchLiveDB(true), 2500);
-            } catch(e) { showToast("Ошибка сети"); }
+                
+                setTimeout(() => {
+                    fetchLiveDB(true);
+                    if(callback) callback();
+                }, 2500);
+            } catch(e) { 
+                showToast("Ошибка сети"); 
+                if(callback) callback();
+            }
         }
 
         function getStatusClass(u) { return u.game ? "bg-ingame" : (u.status === 1 ? "bg-online" : (u.status === 3 || u.status === 4 ? "bg-away" : "")); }
         function getStatusText(u) { return u.game ? "🎮 " + u.game : (u.status === 1 ? "🟢 В сети" : (u.status === 0 ? "🔴 Оффлайн" : "🟡 Отошел")); }
+        
+        // ФОРМАТИРОВАНИЕ ИНВЕНТАРЯ (мелкие штуки)
         function colorizeInv(text) {
-            if (!text) return "Неизвестно ⚠️";
-            if (text.includes('$') || text.includes('Открыт')) return `<span style="color: #4CAF50;">${text}</span>`;
-            return text;
+            if (!text || text === "-") return '<span style="color:#7f91a4;">-</span>';
+            // Делаем (142 шт.) мелким серым текстом
+            let formatted = text.replace(/\((.*?)\)/, '<span style="font-size: 10px; color: #a8b5c2;">($1)</span>');
+            if (formatted.includes('$')) return `<span style="color: #4CAF50;">${formatted}</span>`;
+            return formatted;
         }
 
         function formatTimeLeft(targetTime) {
@@ -324,14 +353,14 @@
                 let bell = showBells ? `<div class="bell-icon" onclick="toggleNotif(event, '${user.id}')">${user.notif ? '🔔' : '🔕'}</div>` : '';
                 
                 let tbText = "";
-                let timerHtml = user.tb_time ? `<span style="color:#7f91a4; font-weight:normal; margin-left:4px; font-size:10px;">(⏳ ${formatTimeLeft(user.tb_time)})</span>` : "";
+                let timerHtml = user.tb_time ? `<span style="color:#7f91a4; font-weight:normal; font-size:10px;">(⏳${formatTimeLeft(user.tb_time)})</span>` : "";
 
                 if (user.tb_status === "ban_exact" || user.tb_status === "ban_approx") tbText = `<div class="tb-status-text text-ban">⏳ Трейдбан ${timerHtml}</div>`;
                 else if (user.tb_status === "ready") tbText = `<div class="tb-status-text text-ready">🔓 Можно снимать</div>`;
-                else if (user.tb_status === "snat") tbText = `<div class="tb-status-text"><span class="text-ready">✅ Снят</span>${timerHtml}</div>`;
-                else if (user.tb_status === "snat_work") tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#FFC107;">🤝 Ведение</span>${timerHtml}</div>`;
-                else if (user.tb_status === "snat_vac") tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#F44336;">🛑 ВАК</span>${timerHtml}</div>`;
-                else if (user.tb_status === "unbanned") tbText = `<div class="tb-status-text text-unbanned">💸 Разбанился(был снят)!</div>`;
+                else if (user.tb_status === "snat") tbText = `<div class="tb-status-text"><span class="text-ready">✅ Снят</span> ${timerHtml}</div>`;
+                else if (user.tb_status === "snat_work") tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#FFC107;">🤝 ВЕД</span> ${timerHtml}</div>`;
+                else if (user.tb_status === "snat_vac") tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#F44336;">🛑 ВАК</span> ${timerHtml}</div>`;
+                else if (user.tb_status === "unbanned") tbText = `<div class="tb-status-text text-unbanned">💸 Разбан</div>`;
 
                 item.innerHTML = `
                     <div class="avatar-container" onclick="showDetail('${user.id}')">
@@ -352,7 +381,6 @@
         // --- УМНАЯ СОРТИРОВКА ---
         function filterList() {
             const query = document.getElementById('new-user-input').value.trim().toLowerCase();
-            // Исключаем тех, кто висит в чекере
             let filtered = [...usersData].filter(u => u.is_checker !== 1);
             
             if (query) filtered = filtered.filter(u => u.name.toLowerCase().includes(query) || u.id.includes(query));
@@ -385,6 +413,7 @@
                 const isSteam = input.includes("steamcommunity.com") || /^\d{17}$/.test(input);
                 if (!isSteam) { showToast("❌ Введи Steam ссылку или ID64!"); return; }
                 sendSilentCommand({ action: "add_user", url: input });
+                showToast("Добавляю... Юзер скоро появится в списке."); 
                 document.getElementById('new-user-input').value = "";
                 document.getElementById('new-user-input').blur();
             }
@@ -396,16 +425,19 @@
             if (!input) return;
             const isSteam = input.includes("steamcommunity.com") || /^\d{17}$/.test(input);
             if (!isSteam) { showToast("❌ Введи Steam ссылку или ID64!"); return; }
-            sendSilentCommand({ action: "checker_scan", url: input });
+            
+            setButtonLoading('btn-checker-search', true, '🔍');
+            sendSilentCommand({ action: "checker_scan", url: input }, () => setButtonLoading('btn-checker-search', false, '🔍'));
+            
             document.getElementById('checker-input').value = "";
             document.getElementById('checker-input').blur();
         }
 
-        function approveChecker(id) {
+        function approveChecker(id, btnElement) {
+            btnElement.innerText = "⏳ Добавляю...";
             sendSilentCommand({ action: "approve_checker", steam_id: id });
-            // Временно убираем из чекера для визуала
             usersData = usersData.filter(u => { if(u.id === id) { u.is_checker = 0; } return true; });
-            renderChecker();
+            setTimeout(renderChecker, 1000);
             showToast("Переношу в основную базу...");
         }
 
@@ -427,13 +459,13 @@
                             <div style="font-weight:bold; font-size:16px; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">${user.name}</div>
                             <div style="font-size:12px; color:#7f91a4;">ID: ${user.id}</div>
                         </div>
-                        <button class="sq-btn btn-danger" style="width:32px; height:32px; font-size:14px; flex-shrink:0;" onclick="deleteUser('${user.id}')">🗑</button>
+                        <button class="sq-btn btn-danger" style="width:32px; height:32px; font-size:14px; flex-shrink:0;" onclick="deleteUser('${user.id}')">❌</button>
                     </div>
                     <div class="stat-row"><span>Часов в CS:</span> <span class="stat-value">${user.hours}</span></div>
                     <div class="stat-row"><span>CS2:</span> <span class="stat-value">${colorizeInv(user.inv)}</span></div>
                     <div class="stat-row"><span>Dota 2:</span> <span class="stat-value">${colorizeInv(user.inv_dota)}</span></div>
                     <div class="stat-row"><span>Rust:</span> <span class="stat-value">${colorizeInv(user.inv_rust)}</span></div>
-                    <button class="sq-btn btn-secondary" style="width:100%; margin-top:10px; background-color:#4CAF50; color:white; font-weight:bold;" onclick="approveChecker('${user.id}')">✅ Добавить в базу</button>
+                    <button class="sq-btn btn-secondary" style="width:100%; margin-top:10px; background-color:#4CAF50; color:white; font-weight:bold;" onclick="approveChecker('${user.id}', this)">✅ Добавить в базу</button>
                 `;
                 container.appendChild(item);
             });
@@ -460,13 +492,13 @@
             const type = document.querySelector('input[name="ban_type"]:checked').value;
             if(type === 'ban_exact') {
                 document.getElementById('ban-exact-inputs').style.display = 'flex'; document.getElementById('ban-approx-inputs').style.display = 'none';
-                document.getElementById('ban-hint').innerHTML = '(точная дата конца тб:)';
+                document.getElementById('ban-hint').innerHTML = 'Точная дата конца тб:';
                 const now = new Date();
                 document.getElementById('ban-day').value = String(now.getDate()); document.getElementById('ban-month').value = String(now.getMonth() + 1);
                 document.getElementById('ban-time').value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
             } else {
                 document.getElementById('ban-exact-inputs').style.display = 'none'; document.getElementById('ban-approx-inputs').style.display = 'flex';
-                document.getElementById('ban-hint').innerHTML = '(кол-во дней до конца тб:)';
+                document.getElementById('ban-hint').innerHTML = 'Кол-во дней до конца тб:';
             }
         }
 
@@ -515,7 +547,6 @@
         }
         function showList() { switchView('list-view'); currentUser = null; document.getElementById('new-user-input').value = ""; }
         function openSettings() { switchView('settings-view'); }
-        function openChecker() { switchView('checker-view'); }
 
         function showDetail(id, silentUpdate = false) {
             currentUser = usersData.find(u => u.id === id); 

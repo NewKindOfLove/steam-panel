@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Steam Panel</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
     <style>
         body { background-color: var(--tg-theme-bg-color, #17212b); color: var(--tg-theme-text-color, #ffffff); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; }
         .container { padding: 15px; display: none; } .active-view { display: block; }
@@ -15,19 +14,22 @@
         .sq-btn:active { opacity: 0.8; } .btn-secondary { background-color: var(--tg-theme-secondary-bg-color, #242f3d); color: var(--tg-theme-text-color); } .btn-danger { background-color: #e53935; color: white; }
         
         .user-list { display: flex; flex-direction: column; gap: 10px; }
-        .user-item { display: flex; align-items: center; padding: 10px 10px 22px 10px; background-color: var(--tg-theme-secondary-bg-color, #242f3d); border-radius: 10px; cursor: pointer; position: relative; }
+        .user-item { display: flex; align-items: center; padding: 10px; background-color: var(--tg-theme-secondary-bg-color, #242f3d); border-radius: 10px; cursor: pointer; position: relative; min-height: 50px; }
         .avatar-container { position: relative; margin-right: 15px; }
-        .avatar-small { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; }
+        .avatar-small { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; display: block;}
         
-        .status-badge { position: absolute; bottom: 0; right: 0; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--tg-theme-secondary-bg-color, #242f3d); display: none; }
+        .status-badge { position: absolute; bottom: -2px; right: -2px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--tg-theme-secondary-bg-color, #242f3d); display: none; }
         .bg-online { background-color: #4CAF50; display: block; } 
         .bg-ingame { background-color: #7FFF00; display: block; box-shadow: 0 0 8px #7FFF00;} 
         .bg-away { background-color: #FFC107; display: block; }
         
-        .user-info-short { flex-grow: 1; font-weight: bold; font-size: 16px; margin-right: 30px;} 
-        .bell-icon { font-size: 18px; padding: 5px; cursor: pointer; position: absolute; top: 8px; right: 8px; }
+        .user-info-short { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; overflow: hidden; margin-right: 20px;} 
+        .user-name-text { font-size: 15px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .user-inv-text { font-size: 11px; font-weight: normal; margin-top: 3px; color: #a8b5c2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         
-        .tb-status-text { position: absolute; bottom: 6px; right: 12px; font-size: 11px; font-weight: bold; letter-spacing: 0.3px; }
+        .bell-icon { font-size: 18px; padding: 5px; cursor: pointer; position: absolute; top: 50%; transform: translateY(-50%); right: 10px; }
+        
+        .tb-status-text { position: absolute; bottom: 8px; right: 12px; font-size: 11px; font-weight: bold; letter-spacing: 0.3px; }
         .text-ready { color: #4CAF50; }
         .text-ban { color: #FF9800; }
         .text-unbanned { color: #39FF14; } 
@@ -38,26 +40,20 @@
         .card-name { font-size: 22px; font-weight: bold; margin-bottom: 5px; }
         .card-id-text { font-size: 13px; color: var(--tg-theme-hint-color); margin-bottom: 3px; }
 
-        .card-stats { background-color: var(--tg-theme-secondary-bg-color, #242f3d); padding: 15px; border-radius: 10px; margin-bottom: 15px; }
-        .stat-row { display: flex; justify-content: space-between; margin-bottom: 8px; align-items: center;} .stat-row:last-child { margin-bottom: 0; } .stat-value { font-weight: bold; }
+        .card-stats { background-color: var(--tg-theme-secondary-bg-color, #242f3d); padding: 15px; border-radius: 10px; margin-bottom: 15px; position: relative;}
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 8px; align-items: center;} .stat-row:last-child { margin-bottom: 0; } .stat-value { font-weight: bold; text-align:right;}
         
         select { background-color: var(--tg-theme-bg-color, #17212b); color: var(--tg-theme-text-color, #ffffff); border: 1px solid var(--tg-theme-hint-color, #7f91a4); border-radius: 5px; padding: 5px; outline: none; font-weight: bold; font-size: 14px;}
         .date-sel { width: 55px; text-align: center; }
         .snat-input { width: 75px; padding: 4px; border-radius: 5px; background-color: var(--tg-theme-bg-color, #17212b); color: white; border: 1px solid var(--tg-theme-hint-color, #7f91a4); outline: none; text-align: center; font-size: 14px;}
-        
-        input[type="time"]::-webkit-calendar-picker-indicator { display: none; -webkit-appearance: none; }
-        input[type="time"] { -moz-appearance: textfield; }
+        input[type="time"]::-webkit-calendar-picker-indicator { display: none; -webkit-appearance: none; } input[type="time"] { -moz-appearance: textfield; }
 
         .param-box { background-color: var(--tg-theme-bg-color, #17212b); padding: 12px; border-radius: 8px; margin-top:10px; display:none; flex-direction:column; gap:12px; border: 1px solid #303f50; }
         .param-header { display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid #303f50; padding-bottom: 8px; }
         .param-title { font-weight:bold; color:#5288c1; font-size:13px; max-width: 120px; line-height: 1.2; }
-        
         .param-radios { font-size:12px; font-weight:bold; display: flex; gap: 10px; align-items: center;}
         .param-radios label { cursor:pointer; display: flex; align-items: center; gap: 4px;}
-        .radio-snat { color: #4CAF50; }
-        .radio-work { color: #FFC107; }
-        .radio-vac { color: #F44336; }
-
+        .radio-snat { color: #4CAF50; } .radio-work { color: #FFC107; } .radio-vac { color: #F44336; }
         .param-inputs-wrap { display:flex; justify-content:flex-start; gap:10px; align-items:flex-end; }
         .input-group { display:flex; flex-direction:column; align-items:center; }
         .input-label { font-size:10px; color:#7f91a4; margin-bottom:4px; font-weight: bold; text-transform: uppercase; }
@@ -77,17 +73,41 @@
 <body>
     <div id="toast">Уведомление</div>
 
-    <!-- СПИСОК -->
+    <!-- 1. СПИСОК И ГЛАВНОЕ МЕНЮ -->
     <div class="container active-view" id="list-view">
         <div class="top-bar">
-            <input type="text" id="new-user-input" placeholder="Поиск или Steam ссылка (Enter)">
+            <input type="text" id="new-user-input" placeholder="Поиск (Имя или ID)">
             <button class="sq-btn" onclick="manualRefresh()">🔄</button>
-            <button class="sq-btn btn-secondary" onclick="openSettings()">⚙️</button>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-bottom: 15px; gap: 8px;">
+            <select id="sort-select" style="flex-grow:1; font-size: 13px;" onchange="filterList()">
+                <option value="default">Сначала новые</option>
+                <option value="inv_desc">По цене инвентаря ($)</option>
+                <option value="tb_asc">По разбану ⏳</option>
+            </select>
+            <button class="sq-btn btn-secondary" style="width:auto; padding:0 12px; font-size:13px; font-weight:bold; color: #4CAF50;" onclick="switchView('checker-view')">🔍 Чекер</button>
+            <button class="sq-btn btn-secondary" style="font-size:16px;" onclick="switchView('settings-view')">⚙️</button>
         </div>
         <div class="user-list" id="users-container">Ожидание данных...</div>
     </div>
 
-    <!-- КАРТОЧКА -->
+    <!-- 2. ОКНО ЧЕКЕРА ИНВЕНТАРЕЙ -->
+    <div class="container" id="checker-view">
+        <div class="nav-bar">
+            <button class="sq-btn btn-secondary" onclick="showList()">◀</button>
+            <h3 style="margin:0; align-self:center;">Чекер инвентарей</h3>
+            <div style="width:42px;"></div>
+        </div>
+        <div class="top-bar" style="margin-bottom: 20px;">
+            <input type="text" id="checker-input" placeholder="Steam ссылка или ID">
+            <button class="sq-btn" style="background-color:#4CAF50;" onclick="runChecker()">🔍</button>
+        </div>
+        <div id="checker-results" class="user-list">
+            <div style="text-align:center; color:#7f91a4; font-size: 14px; margin-top:20px;">Введи ссылку, чтобы проверить аккаунт.</div>
+        </div>
+    </div>
+
+    <!-- 3. КАРТОЧКА ЮЗЕРА -->
     <div class="container" id="detail-view">
         <div class="nav-bar">
             <button class="sq-btn btn-secondary" onclick="showList()">◀</button>
@@ -125,28 +145,14 @@
                         <label><input type="radio" name="ban_type" value="ban_approx" onchange="toggleBanUI()"> Примерная</label>
                     </div>
                 </div>
-                
                 <div class="param-inputs-wrap" id="ban-exact-inputs">
-                    <div class="input-group">
-                        <span class="input-label">День</span>
-                        <select id="ban-day" class="date-sel"></select>
-                    </div>
-                    <div class="input-group">
-                        <span class="input-label">Месяц</span>
-                        <select id="ban-month" class="date-sel"></select>
-                    </div>
-                    <div class="input-group" style="margin-left: 5px;">
-                        <span class="input-label">Время</span>
-                        <input type="time" id="ban-time" class="snat-input" step="60">
-                    </div>
+                    <div class="input-group"><span class="input-label">День</span><select id="ban-day" class="date-sel"></select></div>
+                    <div class="input-group"><span class="input-label">Месяц</span><select id="ban-month" class="date-sel"></select></div>
+                    <div class="input-group" style="margin-left: 5px;"><span class="input-label">Время</span><input type="time" id="ban-time" class="snat-input" step="60"></div>
                     <button class="sq-btn" style="width: 32px; height: 32px; font-size: 14px; margin-bottom: 1px; margin-left:auto;" onclick="saveBanExact()">💾</button>
                 </div>
-                
                 <div class="param-inputs-wrap" id="ban-approx-inputs" style="display:none;">
-                    <div class="input-group">
-                        <span class="input-label">Дней</span>
-                        <select id="ban-days" class="date-sel" style="width: 60px;"></select>
-                    </div>
+                    <div class="input-group"><span class="input-label">Дней</span><select id="ban-days" class="date-sel" style="width: 60px;"></select></div>
                     <button class="sq-btn" style="width: 32px; height: 32px; font-size: 14px; margin-bottom: 1px; margin-left:auto;" onclick="saveBanApprox()">💾</button>
                 </div>
             </div>
@@ -161,18 +167,9 @@
                     </div>
                 </div>
                 <div class="param-inputs-wrap">
-                    <div class="input-group">
-                        <span class="input-label">День</span>
-                        <select id="snat-day" class="date-sel"></select>
-                    </div>
-                    <div class="input-group">
-                        <span class="input-label">Месяц</span>
-                        <select id="snat-month" class="date-sel"></select>
-                    </div>
-                    <div class="input-group" style="margin-left: 5px;">
-                        <span class="input-label">Время</span>
-                        <input type="time" id="snat-time" class="snat-input" step="60">
-                    </div>
+                    <div class="input-group"><span class="input-label">День</span><select id="snat-day" class="date-sel"></select></div>
+                    <div class="input-group"><span class="input-label">Месяц</span><select id="snat-month" class="date-sel"></select></div>
+                    <div class="input-group" style="margin-left: 5px;"><span class="input-label">Время</span><input type="time" id="snat-time" class="snat-input" step="60"></div>
                     <button class="sq-btn" style="width: 32px; height: 32px; font-size: 14px; margin-bottom: 1px; margin-left:auto;" onclick="saveSnat()">💾</button>
                 </div>
             </div>
@@ -184,6 +181,7 @@
         </div>
     </div>
 
+    <!-- 4. НАСТРОЙКИ -->
     <div class="container" id="settings-view">
         <div class="nav-bar">
             <button class="sq-btn btn-secondary" onclick="showList()">◀</button>
@@ -219,21 +217,15 @@
             for(let i=1; i<=12; i++) months += `<option value="${i}">${String(i).padStart(2,'0')}</option>`;
             for(let i=1; i<=15; i++) days15 += `<option value="${i}">${i}</option>`;
             
-            document.getElementById('ban-day').innerHTML = days;
-            document.getElementById('ban-month').innerHTML = months;
-            document.getElementById('snat-day').innerHTML = days;
-            document.getElementById('snat-month').innerHTML = months;
+            document.getElementById('ban-day').innerHTML = days; document.getElementById('ban-month').innerHTML = months;
+            document.getElementById('snat-day').innerHTML = days; document.getElementById('snat-month').innerHTML = months;
             document.getElementById('ban-days').innerHTML = days15;
         }
         populateDateSelects();
 
         let isEditing = false;
-        document.addEventListener('focusin', (e) => {
-            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) isEditing = true;
-        });
-        document.addEventListener('focusout', (e) => {
-            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) setTimeout(() => isEditing = false, 200);
-        });
+        document.addEventListener('focusin', (e) => { if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) isEditing = true; });
+        document.addEventListener('focusout', (e) => { if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) setTimeout(() => isEditing = false, 200); });
 
         const urlParams = new URLSearchParams(window.location.search);
         const TOKEN = urlParams.get('t');
@@ -260,19 +252,15 @@
                 
                 if(document.getElementById('list-view').classList.contains('active-view')) {
                     filterList(); 
+                } else if (document.getElementById('checker-view').classList.contains('active-view')) {
+                    renderChecker();
                 } else if (currentUser) {
                     const upUser = usersData.find(u => u.id === currentUser.id);
                     if (upUser) {
                         currentUser = upUser; 
                         document.getElementById('detail-status').innerHTML = getStatusText(upUser);
                         document.getElementById('detail-hours').innerText = upUser.hours;
-                        
-                        let invText = upUser.inv;
-                        if(invText && (invText.includes('$') || invText.includes('Открыт'))) {
-                            document.getElementById('detail-inv').innerHTML = `<span style="color: #4CAF50;">${invText}</span>`;
-                        } else {
-                            document.getElementById('detail-inv').innerText = invText;
-                        }
+                        document.getElementById('detail-inv').innerHTML = colorizeInv(upUser.inv);
                     } else { showList(); }
                 }
                 if (manual) showToast("Данные обновлены ✅");
@@ -282,15 +270,12 @@
         setInterval(fetchLiveDB, 3000);
         fetchLiveDB();
 
-        // КНОПКА ПРИНУДИТЕЛЬНОГО ОБНОВЛЕНИЯ ВСЕХ ИНВЕНТАРЕЙ В БАЗЕ
-        function manualRefresh() { 
-            document.getElementById('new-user-input').value = ""; 
-            sendSilentCommand({ action: "force_update" });
-            showToast("Синхронизация со Steam..."); 
-        }
+        function manualRefresh() { document.getElementById('new-user-input').value = ""; fetchLiveDB(true); }
 
         async function sendSilentCommand(cmdObj) {
-            if (cmdObj.action !== "force_update") showToast("Обработка...");
+            if(cmdObj.action === "checker_scan") showToast("Сканирую игры (≈5 сек)...");
+            else showToast("Обработка...");
+            
             try {
                 const r = await fetch(`https://api.telegra.ph/getPage/${CMD_PATH}?return_content=true&_=${Date.now()}`);
                 const data = await r.json();
@@ -319,48 +304,44 @@
 
         function getStatusClass(u) { return u.game ? "bg-ingame" : (u.status === 1 ? "bg-online" : (u.status === 3 || u.status === 4 ? "bg-away" : "")); }
         function getStatusText(u) { return u.game ? "🎮 " + u.game : (u.status === 1 ? "🟢 В сети" : (u.status === 0 ? "🔴 Оффлайн" : "🟡 Отошел")); }
+        function colorizeInv(text) {
+            if (!text) return "Неизвестно ⚠️";
+            if (text.includes('$') || text.includes('Открыт')) return `<span style="color: #4CAF50;">${text}</span>`;
+            return text;
+        }
 
         function formatTimeLeft(targetTime) {
             let tl = targetTime - Math.floor(Date.now() / 1000);
             if (tl <= 0) return "Истекает...";
-            let d = Math.floor(tl / 86400);
-            let h = Math.floor((tl % 86400) / 3600);
-            let m = Math.floor((tl % 3600) / 60);
-            if (d > 0) return `${d}д ${h}ч`;
-            if (h > 0) return `${h}ч ${m}м`;
-            return `${m}м`;
+            let d = Math.floor(tl / 86400); let h = Math.floor((tl % 86400) / 3600); let m = Math.floor((tl % 3600) / 60);
+            if (d > 0) return `${d}д ${h}ч`; if (h > 0) return `${h}ч ${m}м`; return `${m}м`;
         }
 
-        function renderList(filteredData = usersData) {
+        function renderList(filteredData) {
             const container = document.getElementById('users-container'); container.innerHTML = '';
             filteredData.forEach(user => {
                 const item = document.createElement('div'); item.className = 'user-item';
                 let bell = showBells ? `<div class="bell-icon" onclick="toggleNotif(event, '${user.id}')">${user.notif ? '🔔' : '🔕'}</div>` : '';
                 
                 let tbText = "";
-                let timerStr = user.tb_time ? `(⏳ ${formatTimeLeft(user.tb_time)})` : "";
-                let timerHtml = user.tb_time ? `<span style="color:#7f91a4; font-weight:normal; margin-left: 4px; font-size:10px;">${timerStr}</span>` : "";
+                let timerHtml = user.tb_time ? `<span style="color:#7f91a4; font-weight:normal; margin-left:4px; font-size:10px;">(⏳ ${formatTimeLeft(user.tb_time)})</span>` : "";
 
-                if (user.tb_status === "ban_exact" || user.tb_status === "ban_approx") {
-                    tbText = `<div class="tb-status-text text-ban">⏳ Трейдбан ${timerHtml}</div>`;
-                } else if (user.tb_status === "ready") { 
-                    tbText = `<div class="tb-status-text text-ready">🔓 Можно снимать</div>`;
-                } else if (user.tb_status === "snat") {
-                    tbText = `<div class="tb-status-text"><span class="text-ready">✅ Снят</span>${timerHtml}</div>`;
-                } else if (user.tb_status === "snat_work") {
-                    tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#FFC107;">🤝 Ведение</span>${timerHtml}</div>`;
-                } else if (user.tb_status === "snat_vac") {
-                    tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#F44336;">🛑 ВАК</span>${timerHtml}</div>`;
-                } else if (user.tb_status === "unbanned") {
-                    tbText = `<div class="tb-status-text text-unbanned">💸 Разбанился(был снят)!</div>`;
-                }
+                if (user.tb_status === "ban_exact" || user.tb_status === "ban_approx") tbText = `<div class="tb-status-text text-ban">⏳ Трейдбан ${timerHtml}</div>`;
+                else if (user.tb_status === "ready") tbText = `<div class="tb-status-text text-ready">🔓 Можно снимать</div>`;
+                else if (user.tb_status === "snat") tbText = `<div class="tb-status-text"><span class="text-ready">✅ Снят</span>${timerHtml}</div>`;
+                else if (user.tb_status === "snat_work") tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#FFC107;">🤝 Ведение</span>${timerHtml}</div>`;
+                else if (user.tb_status === "snat_vac") tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#F44336;">🛑 ВАК</span>${timerHtml}</div>`;
+                else if (user.tb_status === "unbanned") tbText = `<div class="tb-status-text text-unbanned">💸 Разбанился(был снят)!</div>`;
 
                 item.innerHTML = `
                     <div class="avatar-container" onclick="showDetail('${user.id}')">
                         <img class="avatar-small" src="${user.avatar || 'https://steamuserimages-a.akamaihd.net/ugc/885384897182110030/F095539864AC9E94AE5236E04C8CA7C2725BCEEA/'}">
                         <div class="status-badge ${getStatusClass(user)}"></div>
                     </div>
-                    <div class="user-info-short" onclick="showDetail('${user.id}')">${user.name}</div>
+                    <div class="user-info-short" onclick="showDetail('${user.id}')">
+                        <div class="user-name-text">${user.name}</div>
+                        <div class="user-inv-text">Инв: ${colorizeInv(user.inv)}</div>
+                    </div>
                     ${tbText}
                     ${bell}
                 `;
@@ -368,10 +349,31 @@
             });
         }
 
+        // --- УМНАЯ СОРТИРОВКА ---
         function filterList() {
             const query = document.getElementById('new-user-input').value.trim().toLowerCase();
-            if (!query) { renderList(usersData); return; }
-            const filtered = usersData.filter(u => u.name.toLowerCase().includes(query) || u.id.includes(query));
+            // Исключаем тех, кто висит в чекере
+            let filtered = [...usersData].filter(u => u.is_checker !== 1);
+            
+            if (query) filtered = filtered.filter(u => u.name.toLowerCase().includes(query) || u.id.includes(query));
+            
+            const sortVal = document.getElementById('sort-select').value;
+            if (sortVal === 'inv_desc') {
+                filtered.sort((a, b) => {
+                    let valA = parseFloat((a.inv || "").replace(/[^0-9.]/g, '')) || 0;
+                    let valB = parseFloat((b.inv || "").replace(/[^0-9.]/g, '')) || 0;
+                    return valB - valA;
+                });
+            } else if (sortVal === 'tb_asc') {
+                filtered.sort((a, b) => {
+                    let now = Math.floor(Date.now() / 1000);
+                    let tA = a.tb_time && a.tb_time > now ? a.tb_time : Infinity;
+                    let tB = b.tb_time && b.tb_time > now ? b.tb_time : Infinity;
+                    return tA - tB;
+                });
+            } else {
+                filtered.reverse(); // Сначала новые
+            }
             renderList(filtered);
         }
 
@@ -388,22 +390,66 @@
             }
         });
 
+        // --- ЛОГИКА ЧЕКЕРА ---
+        function runChecker() {
+            const input = document.getElementById('checker-input').value.trim();
+            if (!input) return;
+            const isSteam = input.includes("steamcommunity.com") || /^\d{17}$/.test(input);
+            if (!isSteam) { showToast("❌ Введи Steam ссылку или ID64!"); return; }
+            sendSilentCommand({ action: "checker_scan", url: input });
+            document.getElementById('checker-input').value = "";
+            document.getElementById('checker-input').blur();
+        }
+
+        function approveChecker(id) {
+            sendSilentCommand({ action: "approve_checker", steam_id: id });
+            // Временно убираем из чекера для визуала
+            usersData = usersData.filter(u => { if(u.id === id) { u.is_checker = 0; } return true; });
+            renderChecker();
+            showToast("Переношу в основную базу...");
+        }
+
+        function renderChecker() {
+            const container = document.getElementById('checker-results'); container.innerHTML = '';
+            const checkerUsers = usersData.filter(u => u.is_checker === 1).reverse();
+            
+            if (checkerUsers.length === 0) {
+                container.innerHTML = '<div style="text-align:center; color:#7f91a4; font-size: 14px; margin-top:20px;">Введи ссылку вверху, чтобы проверить аккаунт.</div>';
+                return;
+            }
+            
+            checkerUsers.forEach(user => {
+                const item = document.createElement('div'); item.className = 'card-stats'; item.style.marginBottom = '10px';
+                item.innerHTML = `
+                    <div style="display:flex; align-items:center; margin-bottom:10px; border-bottom: 1px solid #303f50; padding-bottom: 10px;">
+                        <img src="${user.avatar}" class="avatar-small" style="margin-right:12px;">
+                        <div style="flex-grow:1; overflow:hidden;">
+                            <div style="font-weight:bold; font-size:16px; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">${user.name}</div>
+                            <div style="font-size:12px; color:#7f91a4;">ID: ${user.id}</div>
+                        </div>
+                        <button class="sq-btn btn-danger" style="width:32px; height:32px; font-size:14px; flex-shrink:0;" onclick="deleteUser('${user.id}')">🗑</button>
+                    </div>
+                    <div class="stat-row"><span>Часов в CS:</span> <span class="stat-value">${user.hours}</span></div>
+                    <div class="stat-row"><span>CS2:</span> <span class="stat-value">${colorizeInv(user.inv)}</span></div>
+                    <div class="stat-row"><span>Dota 2:</span> <span class="stat-value">${colorizeInv(user.inv_dota)}</span></div>
+                    <div class="stat-row"><span>Rust:</span> <span class="stat-value">${colorizeInv(user.inv_rust)}</span></div>
+                    <button class="sq-btn btn-secondary" style="width:100%; margin-top:10px; background-color:#4CAF50; color:white; font-weight:bold;" onclick="approveChecker('${user.id}')">✅ Добавить в базу</button>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        // --- ЛОГИКА ПАРАМЕТРОВ ---
         function handleTradebanChange() {
             const val = document.getElementById('tradeban-select').value;
-            const banUI = document.getElementById('ban-ui');
-            const snatUI = document.getElementById('snat-ui');
-            
-            banUI.style.display = 'none';
-            snatUI.style.display = 'none';
-            
+            const banUI = document.getElementById('ban-ui'); const snatUI = document.getElementById('snat-ui');
+            banUI.style.display = 'none'; snatUI.style.display = 'none';
             if (val === 'ban') {
-                banUI.style.display = 'flex';
-                toggleBanUI();
+                banUI.style.display = 'flex'; toggleBanUI();
             } else if (val === 'snat') {
                 snatUI.style.display = 'flex';
                 const now = new Date();
-                document.getElementById('snat-day').value = String(now.getDate());
-                document.getElementById('snat-month').value = String(now.getMonth() + 1);
+                document.getElementById('snat-day').value = String(now.getDate()); document.getElementById('snat-month').value = String(now.getMonth() + 1);
                 document.getElementById('snat-time').value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
             } else {
                 saveTradebanState(val, 0);
@@ -413,17 +459,13 @@
         function toggleBanUI() {
             const type = document.querySelector('input[name="ban_type"]:checked').value;
             if(type === 'ban_exact') {
-                document.getElementById('ban-exact-inputs').style.display = 'flex';
-                document.getElementById('ban-approx-inputs').style.display = 'none';
+                document.getElementById('ban-exact-inputs').style.display = 'flex'; document.getElementById('ban-approx-inputs').style.display = 'none';
                 document.getElementById('ban-hint').innerHTML = '(точная дата конца тб:)';
-                
                 const now = new Date();
-                document.getElementById('ban-day').value = String(now.getDate());
-                document.getElementById('ban-month').value = String(now.getMonth() + 1);
+                document.getElementById('ban-day').value = String(now.getDate()); document.getElementById('ban-month').value = String(now.getMonth() + 1);
                 document.getElementById('ban-time').value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
             } else {
-                document.getElementById('ban-exact-inputs').style.display = 'none';
-                document.getElementById('ban-approx-inputs').style.display = 'flex';
+                document.getElementById('ban-exact-inputs').style.display = 'none'; document.getElementById('ban-approx-inputs').style.display = 'flex';
                 document.getElementById('ban-hint').innerHTML = '(кол-во дней до конца тб:)';
             }
         }
@@ -433,37 +475,19 @@
             const m = parseInt(document.getElementById(`${prefix}-month`).value);
             const timeStr = document.getElementById(`${prefix}-time`).value.trim();
             if (!timeStr) return null;
-            
             const tParts = timeStr.split(':');
             const h = parseInt(tParts[0]); const min = parseInt(tParts[1]);
             if (isNaN(d) || isNaN(m) || isNaN(h) || isNaN(min)) return null;
-            
-            const now = new Date();
-            let targetYear = now.getFullYear();
+            const now = new Date(); let targetYear = now.getFullYear();
             if (now.getMonth() === 11 && m === 1) targetYear++; 
-            
-            const ev = new Date(targetYear, m - 1, d, h, min);
-            return Math.floor(ev.getTime() / 1000);
+            return Math.floor(new Date(targetYear, m - 1, d, h, min).getTime() / 1000);
         }
 
-        function saveBanExact() {
-            const unix = getUnixFromInputs('ban');
-            if(!unix) return showToast("Укажи время!");
-            saveTradebanState('ban_exact', unix);
-        }
-
-        function saveBanApprox() {
-            const days = parseInt(document.getElementById('ban-days').value) || 0;
-            const unlockTime = Math.floor(Date.now() / 1000) + (days * 86400);
-            saveTradebanState('ban_approx', unlockTime);
-        }
-        
+        function saveBanExact() { const unix = getUnixFromInputs('ban'); if(!unix) return showToast("Укажи время!"); saveTradebanState('ban_exact', unix); }
+        function saveBanApprox() { const days = parseInt(document.getElementById('ban-days').value) || 0; saveTradebanState('ban_approx', Math.floor(Date.now() / 1000) + (days * 86400)); }
         function saveSnat() {
-            const unix = getUnixFromInputs('snat');
-            if(!unix) return showToast("Укажи время!");
-            const unlockTime = unix + 7 * 86400; 
-            const status = document.querySelector('input[name="snat_type"]:checked').value;
-            saveTradebanState(status, unlockTime);
+            const unix = getUnixFromInputs('snat'); if(!unix) return showToast("Укажи время!");
+            saveTradebanState(document.querySelector('input[name="snat_type"]:checked').value, unix + 7 * 86400);
         }
 
         document.getElementById("ban-time").addEventListener("keydown", e => { if (e.key === "Enter") { saveBanExact(); document.getElementById("ban-time").blur();} });
@@ -471,27 +495,27 @@
 
         function saveTradebanState(status, timeStamp) {
             if (!currentUser) return;
-            currentUser.tb_status = status;
-            currentUser.tb_time = timeStamp;
+            currentUser.tb_status = status; currentUser.tb_time = timeStamp;
             sendSilentCommand({ action: "update_tradeban", steam_id: currentUser.id, tb_status: status, tb_time: timeStamp });
             showToast("Параметр сохранен ✅");
-            document.getElementById('ban-ui').style.display = 'none';
-            document.getElementById('snat-ui').style.display = 'none';
+            document.getElementById('ban-ui').style.display = 'none'; document.getElementById('snat-ui').style.display = 'none';
         }
 
         function fillInputsFromUnix(unix, prefix) {
             const d = new Date(unix * 1000);
-            document.getElementById(`${prefix}-day`).value = String(d.getDate());
-            document.getElementById(`${prefix}-month`).value = String(d.getMonth() + 1);
+            document.getElementById(`${prefix}-day`).value = String(d.getDate()); document.getElementById(`${prefix}-month`).value = String(d.getMonth() + 1);
             document.getElementById(`${prefix}-time`).value = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
         }
 
         function switchView(id) {
-            ['list-view', 'detail-view', 'settings-view'].forEach(v => document.getElementById(v).classList.remove('active-view'));
+            ['list-view', 'detail-view', 'settings-view', 'checker-view'].forEach(v => document.getElementById(v).classList.remove('active-view'));
             document.getElementById(id).classList.add('active-view');
+            if (id === 'checker-view') renderChecker();
+            if (id === 'list-view') filterList();
         }
-        function showList() { switchView('list-view'); currentUser = null; document.getElementById('new-user-input').value = ""; filterList();}
+        function showList() { switchView('list-view'); currentUser = null; document.getElementById('new-user-input').value = ""; }
         function openSettings() { switchView('settings-view'); }
+        function openChecker() { switchView('checker-view'); }
 
         function showDetail(id, silentUpdate = false) {
             currentUser = usersData.find(u => u.id === id); 
@@ -502,26 +526,16 @@
             document.getElementById('detail-link').href = currentUser.url;
             document.getElementById('detail-name').innerText = currentUser.name;
             document.getElementById('detail-id').innerText = currentUser.id;
-            
-            let addedStr = currentUser.added_date ? currentUser.added_date : "Ранее";
-            document.getElementById('detail-added-date').innerText = addedStr;
+            document.getElementById('detail-added-date').innerText = currentUser.added_date ? currentUser.added_date : "Ранее";
             
             let statusText = currentUser.game ? `🎮 ${currentUser.game}` : (currentUser.status === 1 ? "🟢 В сети" : (currentUser.status === 0 ? "🔴 Оффлайн" : "🟡 Отошел"));
             document.getElementById('detail-status').innerHTML = statusText;
             document.getElementById('detail-hours').innerText = currentUser.hours;
-            
-            let invText = currentUser.inv;
-            if(invText && (invText.includes('$') || invText.includes('Открыт'))) {
-                document.getElementById('detail-inv').innerHTML = `<span style="color: #4CAF50;">${invText}</span>`;
-            } else {
-                document.getElementById('detail-inv').innerText = invText;
-            }
+            document.getElementById('detail-inv').innerHTML = colorizeInv(currentUser.inv);
             
             if (!silentUpdate) {
                 const sel = document.getElementById('tradeban-select');
-                const banUI = document.getElementById('ban-ui');
-                const snatUI = document.getElementById('snat-ui');
-                
+                const banUI = document.getElementById('ban-ui'); const snatUI = document.getElementById('snat-ui');
                 sel.value = currentUser.tb_status && currentUser.tb_status !== "none" ? currentUser.tb_status : "none";
                 banUI.style.display = 'none'; snatUI.style.display = 'none';
                 
@@ -529,34 +543,24 @@
                     banUI.style.display = 'flex';
                     document.querySelector(`input[name="ban_type"][value="${currentUser.tb_status}"]`).checked = true;
                     toggleBanUI();
-                    
-                    if (currentUser.tb_status === 'ban_exact' && currentUser.tb_time) {
-                        fillInputsFromUnix(currentUser.tb_time, 'ban');
-                    } else if (currentUser.tb_status === 'ban_approx' && currentUser.tb_time) {
+                    if (currentUser.tb_status === 'ban_exact' && currentUser.tb_time) fillInputsFromUnix(currentUser.tb_time, 'ban');
+                    else if (currentUser.tb_status === 'ban_approx' && currentUser.tb_time) {
                         let tl = currentUser.tb_time - Math.floor(Date.now()/1000);
                         document.getElementById('ban-days').value = tl > 0 ? Math.ceil(tl / 86400) : "1";
                     }
                 } else if (currentUser.tb_status.startsWith('snat')) {
-                    sel.value = 'snat';
-                    snatUI.style.display = 'flex';
+                    sel.value = 'snat'; snatUI.style.display = 'flex';
                     document.querySelector(`input[name="snat_type"][value="${currentUser.tb_status}"]`).checked = true;
-                    if (currentUser.tb_time) {
-                        fillInputsFromUnix(currentUser.tb_time - 7*86400, 'snat');
-                    }
+                    if (currentUser.tb_time) fillInputsFromUnix(currentUser.tb_time - 7*86400, 'snat');
                 }
                 document.getElementById('detail-note').value = currentUser.note;
             }
         }
 
         function saveSettings() { 
-            showBells = document.getElementById('toggle-bells').checked; 
-            localStorage.setItem('showBells', showBells); 
-            
-            importantOnly = document.getElementById('toggle-important').checked;
-            localStorage.setItem('importantOnly', importantOnly);
-            
-            filterList(); 
-            sendSilentCommand({ action: "set_important", value: importantOnly ? 1 : 0 });
+            showBells = document.getElementById('toggle-bells').checked; localStorage.setItem('showBells', showBells); 
+            importantOnly = document.getElementById('toggle-important').checked; localStorage.setItem('importantOnly', importantOnly);
+            filterList(); sendSilentCommand({ action: "set_important", value: importantOnly ? 1 : 0 });
             showToast("Настройки сохранены ✅");
         }
 
@@ -576,13 +580,16 @@
             showToast("Примечание сохранено ✅");
         }
 
-        function deleteUser() {
-            if (!currentUser) return;
+        function deleteUser(targetId = null) {
+            const idToDelete = targetId || (currentUser ? currentUser.id : null);
+            if (!idToDelete) return;
             tg.showConfirm("Удалить пользователя из базы?", passed => {
                 if (passed) {
-                    sendSilentCommand({ action: "delete", steam_id: currentUser.id });
-                    usersData = usersData.filter(u => u.id !== currentUser.id);
-                    filterList(); showList(); showToast("Пользователь удален!");
+                    sendSilentCommand({ action: "delete", steam_id: idToDelete });
+                    usersData = usersData.filter(u => u.id !== idToDelete);
+                    if (document.getElementById('checker-view').classList.contains('active-view')) renderChecker();
+                    else { filterList(); if (!targetId) showList(); }
+                    showToast("Пользователь удален!");
                 }
             });
         }

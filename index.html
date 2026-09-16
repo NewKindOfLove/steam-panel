@@ -166,11 +166,22 @@
                 }
                 usersData = JSON.parse(jsonStr || "[]");
                 
+                // ВОТ ОН - ИДЕАЛЬНЫЙ ФИКС!
                 if(document.getElementById('list-view').classList.contains('active-view')) {
                     filterList(); 
                 } else if (currentUser) {
-                    showDetail(currentUser.id, true);
+                    // ЕСЛИ КАРТОЧКА ОТКРЫТА, ТОЧЕЧНО МЕНЯЕМ ТОЛЬКО ТЕКСТ. ИНПУТЫ НЕ ТРОГАЕМ ВООБЩЕ!
+                    const upUser = usersData.find(u => u.id === currentUser.id);
+                    if (upUser) {
+                        currentUser = upUser; // обновляем ссылку на юзера в фоне
+                        document.getElementById('detail-status').innerHTML = getStatusText(upUser);
+                        document.getElementById('detail-hours').innerText = upUser.hours;
+                        document.getElementById('detail-inv').innerText = upUser.inv;
+                    } else {
+                        showList(); // Юзера удалили из базы
+                    }
                 }
+                
                 if (manual) showToast("Данные обновлены ✅");
             } catch(e) {}
         }
@@ -212,6 +223,7 @@
         }
 
         function getStatusClass(u) { return u.game ? "bg-ingame" : (u.status === 1 ? "bg-online" : (u.status === 3 || u.status === 4 ? "bg-away" : "")); }
+        function getStatusText(u) { return u.game ? "🎮 " + u.game : (u.status === 1 ? "🟢 В сети" : (u.status === 0 ? "🔴 Оффлайн" : "🟡 Отошел")); }
 
         function renderList(filteredData = usersData) {
             const container = document.getElementById('users-container'); container.innerHTML = '';
@@ -237,7 +249,7 @@
                 } else if (user.tb_status === "work") {
                     tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#FFC107;">🤝 Ведение</span></div>`;
                 } else if (user.tb_status === "vac") {
-                    tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#F44336;">☢️ ВАК</span></div>`;
+                    tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#F44336;">❌ ВАК</span></div>`;
                 } else if (user.tb_status === "unbanned") {
                     tbText = `<div class="tb-status-text text-unbanned">💸 Разбанился(был снят)!</div>`;
                 }
@@ -276,7 +288,7 @@
                     return;
                 }
                 sendSilentCommand({ action: "add_user", url: input });
-                showToast("Добавляю... Данные скоро появятся."); 
+                showToast("Добавляю... Юзер скоро появится в списке."); 
                 document.getElementById('new-user-input').value = "";
             }
         });
@@ -328,6 +340,8 @@
             
             const now = new Date();
             const eventDate = new Date(now.getFullYear(), m - 1, d, h, min);
+            
+            // Ровно через 7 дней
             const unlockTime = Math.floor(eventDate.getTime() / 1000) + 7 * 86400;
             const status = document.getElementById('tradeban-select').value;
             saveTradeban(status, unlockTime);
@@ -361,60 +375,55 @@
         function showList() { switchView('list-view'); currentUser = null; document.getElementById('new-user-input').value = ""; filterList();}
         function openSettings() { switchView('settings-view'); }
 
-        function showDetail(id, silentUpdate = false) {
+        // ОТКРЫТИЕ КАРТОЧКИ (ПЕРВОНАЧАЛЬНАЯ ОТРИСОВКА)
+        function showDetail(id) {
             currentUser = usersData.find(u => u.id === id); 
             if(!currentUser) return showList();
-            if(!silentUpdate) switchView('detail-view');
+            switchView('detail-view');
             
             document.getElementById('detail-avatar').src = currentUser.avatar || 'https://steamuserimages-a.akamaihd.net/ugc/885384897182110030/F095539864AC9E94AE5236E04C8CA7C2725BCEEA/';
             document.getElementById('detail-link').href = currentUser.url;
             document.getElementById('detail-name').innerText = currentUser.name;
             document.getElementById('detail-id').innerText = currentUser.id;
             
-            let statusText = currentUser.game ? `🎮 ${currentUser.game}` : (currentUser.status === 1 ? "🟢 В сети" : (currentUser.status === 0 ? "🔴 Оффлайн" : "🟡 Отошел"));
-            document.getElementById('detail-status').innerHTML = statusText;
-            
+            document.getElementById('detail-status').innerHTML = getStatusText(currentUser);
             document.getElementById('detail-hours').innerText = currentUser.hours;
             document.getElementById('detail-inv').innerText = currentUser.inv;
             
-            // ВОТ ОН, ФИКС БАГА!
-            // Не трогаем поля ввода, если карточка уже открыта и обновляется в фоне
-            if (!silentUpdate) {
-                const sel = document.getElementById('tradeban-select');
-                const banRow = document.getElementById('tradeban-inputs-row');
-                const snatRow = document.getElementById('snat-inputs-row');
-                
-                sel.value = currentUser.tb_status && currentUser.tb_status !== "none" ? currentUser.tb_status : "none";
-                
-                banRow.style.display = 'none';
-                snatRow.style.display = 'none';
-                
-                if (sel.value === "ban" && currentUser.tb_time) {
-                    banRow.style.display = 'flex';
-                    let tl = currentUser.tb_time - Math.floor(Date.now()/1000);
-                    if(tl > 0) {
-                        document.getElementById('tradeban-days').value = Math.floor(tl / 86400);
-                        document.getElementById('tradeban-hours').value = Math.floor((tl % 86400) / 3600);
-                    }
-                } else if (['snat', 'work', 'vac'].includes(sel.value) && currentUser.tb_time) {
-                    snatRow.style.display = 'flex';
-                    const eventDate = new Date((currentUser.tb_time - 7 * 86400) * 1000);
-                    const d = String(eventDate.getDate()).padStart(2, '0');
-                    const m = String(eventDate.getMonth() + 1).padStart(2, '0');
-                    const h = String(eventDate.getHours()).padStart(2, '0');
-                    const min = String(eventDate.getMinutes()).padStart(2, '0');
-                    
-                    document.getElementById('snat-date').value = `${d}.${m}`;
-                    document.getElementById('snat-time').value = `${h}:${min}`;
-                } else {
-                    document.getElementById('tradeban-days').value = "";
-                    document.getElementById('tradeban-hours').value = "";
-                    document.getElementById('snat-date').value = "";
-                    document.getElementById('snat-time').value = "";
+            // Настройка селектора и полей
+            const sel = document.getElementById('tradeban-select');
+            const banRow = document.getElementById('tradeban-inputs-row');
+            const snatRow = document.getElementById('snat-inputs-row');
+            
+            sel.value = currentUser.tb_status && currentUser.tb_status !== "none" ? currentUser.tb_status : "none";
+            banRow.style.display = 'none';
+            snatRow.style.display = 'none';
+            
+            if (sel.value === "ban" && currentUser.tb_time) {
+                banRow.style.display = 'flex';
+                let tl = currentUser.tb_time - Math.floor(Date.now()/1000);
+                if(tl > 0) {
+                    document.getElementById('tradeban-days').value = Math.floor(tl / 86400);
+                    document.getElementById('tradeban-hours').value = Math.floor((tl % 86400) / 3600);
                 }
-
-                document.getElementById('detail-note').value = currentUser.note;
+            } else if (['snat', 'work', 'vac'].includes(sel.value) && currentUser.tb_time) {
+                snatRow.style.display = 'flex';
+                const eventDate = new Date((currentUser.tb_time - 7 * 86400) * 1000);
+                const d = String(eventDate.getDate()).padStart(2, '0');
+                const m = String(eventDate.getMonth() + 1).padStart(2, '0');
+                const h = String(eventDate.getHours()).padStart(2, '0');
+                const min = String(eventDate.getMinutes()).padStart(2, '0');
+                
+                document.getElementById('snat-date').value = `${d}.${m}`;
+                document.getElementById('snat-time').value = `${h}:${min}`;
+            } else {
+                document.getElementById('tradeban-days').value = "";
+                document.getElementById('tradeban-hours').value = "";
+                document.getElementById('snat-date').value = "";
+                document.getElementById('snat-time').value = "";
             }
+
+            document.getElementById('detail-note').value = currentUser.note;
         }
 
         function saveSettings() { showBells = document.getElementById('toggle-bells').checked; localStorage.setItem('showBells', showBells); filterList(); }

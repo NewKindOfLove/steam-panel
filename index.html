@@ -37,32 +37,31 @@
         .avatar-big { width: 100px; height: 100px; border-radius: 50%; margin-bottom: 10px; border: 3px solid var(--tg-theme-button-color, #5288c1); object-fit: cover; }
         .card-name { font-size: 22px; font-weight: bold; margin-bottom: 5px; }
         .card-id-text { font-size: 13px; color: var(--tg-theme-hint-color); margin-bottom: 3px; }
-        .card-date-text { font-size: 11px; color: #7f91a4; font-style: italic; }
 
         .card-stats { background-color: var(--tg-theme-secondary-bg-color, #242f3d); padding: 15px; border-radius: 10px; margin-bottom: 15px; }
         .stat-row { display: flex; justify-content: space-between; margin-bottom: 8px; align-items: center;} .stat-row:last-child { margin-bottom: 0; } .stat-value { font-weight: bold; }
         
         select { background-color: var(--tg-theme-bg-color, #17212b); color: var(--tg-theme-text-color, #ffffff); border: 1px solid var(--tg-theme-hint-color, #7f91a4); border-radius: 5px; padding: 5px; outline: none; font-weight: bold; font-size: 14px;}
         .date-sel { width: 55px; text-align: center; }
-        .tradeban-input { width: 55px; padding: 5px; border-radius: 5px; background-color: var(--tg-theme-bg-color, #17212b); color: white; border: 1px solid var(--tg-theme-hint-color, #7f91a4); outline: none; text-align: center; font-size: 14px;}
-        .snat-input { width: 65px; padding: 4px; border-radius: 5px; background-color: var(--tg-theme-bg-color, #17212b); color: white; border: 1px solid var(--tg-theme-hint-color, #7f91a4); outline: none; text-align: center; font-size: 14px;}
+        .snat-input { width: 75px; padding: 4px; border-radius: 5px; background-color: var(--tg-theme-bg-color, #17212b); color: white; border: 1px solid var(--tg-theme-hint-color, #7f91a4); outline: none; text-align: center; font-size: 14px;}
         
         input[type="time"]::-webkit-calendar-picker-indicator { display: none; -webkit-appearance: none; }
         input[type="time"] { -moz-appearance: textfield; }
 
-        .param-box { background-color: var(--tg-theme-bg-color, #17212b); padding: 10px; border-radius: 8px; margin-top:10px; display:none; flex-direction:column; gap:10px; }
-        .param-header { display:flex; justify-content:flex-end; align-items:center; }
+        /* ИДЕАЛЬНЫЙ ДИЗАЙН ПАРАМЕТРОВ */
+        .param-box { background-color: var(--tg-theme-bg-color, #17212b); padding: 12px; border-radius: 8px; margin-top:10px; display:none; flex-direction:column; gap:12px; border: 1px solid #303f50; }
+        .param-header { display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid #303f50; padding-bottom: 8px; }
+        .param-title { font-weight:bold; color:#5288c1; font-size:13px; max-width: 120px; line-height: 1.2; }
         
-        .param-radios { font-size:12px; font-weight:bold; display: flex; gap: 8px; align-items: center;}
-        .param-radios label { cursor:pointer; display: flex; align-items: center; gap: 3px;}
+        .param-radios { font-size:12px; font-weight:bold; display: flex; gap: 10px; align-items: center;}
+        .param-radios label { cursor:pointer; display: flex; align-items: center; gap: 4px;}
         .radio-snat { color: #4CAF50; }
         .radio-work { color: #FFC107; }
         .radio-vac { color: #F44336; }
 
-        .param-inputs-wrap { display:flex; justify-content:flex-end; gap:8px; align-items:flex-end; }
+        .param-inputs-wrap { display:flex; justify-content:flex-start; gap:10px; align-items:flex-end; }
         .input-group { display:flex; flex-direction:column; align-items:center; }
-        .input-label { font-size:10px; color:#7f91a4; margin-bottom:3px; }
-        .hint-text { font-size: 10px; color: #5288c1; margin-right: auto; align-self: center; text-align: left; line-height: 1.2;}
+        .input-label { font-size:10px; color:#7f91a4; margin-bottom:4px; font-weight: bold; text-transform: uppercase; }
 
         textarea { width: 100%; box-sizing: border-box; padding: 10px; background-color: var(--tg-theme-bg-color, #17212b); color: var(--tg-theme-text-color, #ffffff); border: 1px solid var(--tg-theme-hint-color, #7f91a4); border-radius: 8px; min-height: 80px; resize: none; font-family: inherit; margin-bottom: 15px; }
         
@@ -98,8 +97,7 @@
         <div class="card-header">
             <a id="detail-link" href="#" target="_blank"><img id="detail-avatar" class="avatar-big" src=""></a>
             <div class="card-name" id="detail-name">Имя</div>
-            <div class="card-id-text">ID: <span id="detail-id"></span></div>
-            <div class="card-date-text" id="detail-added-date"></div>
+            <div class="card-id-text">ID: <span id="detail-id"></span> &nbsp;|&nbsp; Добавлен: <span id="detail-added-date" style="color:#a8b5c2;"></span></div>
         </div>
         
         <div class="card-stats">
@@ -123,6 +121,7 @@
             <!-- Поля для Трейдбана -->
             <div id="ban-ui" class="param-box">
                 <div class="param-header">
+                    <span id="ban-hint" class="param-title">(точная дата конца тб:)</span>
                     <div class="param-radios">
                         <label><input type="radio" name="ban_type" value="ban_exact" checked onchange="toggleBanUI()"> Точная</label>
                         <label><input type="radio" name="ban_type" value="ban_approx" onchange="toggleBanUI()"> Примерная</label>
@@ -130,7 +129,6 @@
                 </div>
                 
                 <div class="param-inputs-wrap" id="ban-exact-inputs">
-                    <span class="hint-text">(точная дата<br>конца тб:)</span>
                     <div class="input-group">
                         <span class="input-label">День</span>
                         <select id="ban-day" class="date-sel"></select>
@@ -139,26 +137,26 @@
                         <span class="input-label">Месяц</span>
                         <select id="ban-month" class="date-sel"></select>
                     </div>
-                    <div class="input-group">
+                    <div class="input-group" style="margin-left: 5px;">
                         <span class="input-label">Время</span>
                         <input type="time" id="ban-time" class="snat-input" step="60">
                     </div>
-                    <button class="sq-btn" style="width: 32px; height: 32px; font-size: 14px; margin-bottom: 1px;" onclick="saveBanExact()">💾</button>
+                    <button class="sq-btn" style="width: 32px; height: 32px; font-size: 14px; margin-bottom: 1px; margin-left:auto;" onclick="saveBanExact()">💾</button>
                 </div>
                 
                 <div class="param-inputs-wrap" id="ban-approx-inputs" style="display:none;">
-                    <span class="hint-text">(кол-во дней<br>до конца тб:)</span>
                     <div class="input-group">
                         <span class="input-label">Дней</span>
-                        <select id="ban-days" class="date-sel" style="width: 55px;"></select>
+                        <select id="ban-days" class="date-sel" style="width: 60px;"></select>
                     </div>
-                    <button class="sq-btn" style="width: 32px; height: 32px; font-size: 14px; margin-bottom: 1px;" onclick="saveBanApprox()">💾</button>
+                    <button class="sq-btn" style="width: 32px; height: 32px; font-size: 14px; margin-bottom: 1px; margin-left:auto;" onclick="saveBanApprox()">💾</button>
                 </div>
             </div>
 
             <!-- Поля для Снятых -->
             <div id="snat-ui" class="param-box">
                 <div class="param-header">
+                    <span class="param-title">(время, когда тип был снят:)</span>
                     <div class="param-radios">
                         <label class="radio-snat"><input type="radio" name="snat_type" value="snat" checked> Снят</label>
                         <label class="radio-work"><input type="radio" name="snat_type" value="snat_work"> Ведение</label>
@@ -166,7 +164,6 @@
                     </div>
                 </div>
                 <div class="param-inputs-wrap">
-                    <span class="hint-text">(когда тип<br>был снят:)</span>
                     <div class="input-group">
                         <span class="input-label">День</span>
                         <select id="snat-day" class="date-sel"></select>
@@ -175,11 +172,11 @@
                         <span class="input-label">Месяц</span>
                         <select id="snat-month" class="date-sel"></select>
                     </div>
-                    <div class="input-group">
+                    <div class="input-group" style="margin-left: 5px;">
                         <span class="input-label">Время</span>
                         <input type="time" id="snat-time" class="snat-input" step="60">
                     </div>
-                    <button class="sq-btn" style="width: 32px; height: 32px; font-size: 14px; margin-bottom: 1px;" onclick="saveSnat()">💾</button>
+                    <button class="sq-btn" style="width: 32px; height: 32px; font-size: 14px; margin-bottom: 1px; margin-left:auto;" onclick="saveSnat()">💾</button>
                 </div>
             </div>
         </div>
@@ -292,7 +289,7 @@
         function manualRefresh() { document.getElementById('new-user-input').value = ""; fetchLiveDB(true); }
 
         async function sendSilentCommand(cmdObj) {
-            showToast("Ожидайте...");
+            showToast("Обработка...");
             try {
                 const r = await fetch(`https://api.telegra.ph/getPage/${CMD_PATH}?return_content=true&_=${Date.now()}`);
                 const data = await r.json();
@@ -417,6 +414,7 @@
             if(type === 'ban_exact') {
                 document.getElementById('ban-exact-inputs').style.display = 'flex';
                 document.getElementById('ban-approx-inputs').style.display = 'none';
+                document.getElementById('ban-hint').innerHTML = '(точная дата конца тб:)';
                 
                 const now = new Date();
                 document.getElementById('ban-day').value = now.getDate();
@@ -425,6 +423,7 @@
             } else {
                 document.getElementById('ban-exact-inputs').style.display = 'none';
                 document.getElementById('ban-approx-inputs').style.display = 'flex';
+                document.getElementById('ban-hint').innerHTML = '(кол-во дней до конца тб:)';
             }
         }
 
@@ -454,7 +453,6 @@
 
         function saveBanApprox() {
             const days = parseInt(document.getElementById('ban-days').value) || 0;
-            if(days <= 0) return showToast("Выбери дни!");
             const unlockTime = Math.floor(Date.now() / 1000) + (days * 86400);
             saveTradebanState('ban_approx', unlockTime);
         }

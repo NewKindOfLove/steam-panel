@@ -86,32 +86,49 @@
             <div class="stat-row"><span>Инвентарь:</span> <span class="stat-value" id="detail-inv"></span></div>
             
             <div class="stat-row" style="margin-top: 10px;">
-                <span>Обработка:</span>
+                <span>Параметр:</span>
                 <div style="display:flex; align-items:center;">
                     <select id="tradeban-select" onchange="handleTradebanChange()">
                         <option value="none" style="display:none;">Нет статуса</option>
                         <option value="ban">Трейдбан</option>
                         <option value="ready">Можно снимать</option>
                         <option value="snat">Снят</option>
-                        <option value="work">Снят + Ведение</option>
-                        <option value="vac">Снят + ВАК</option>
                         <option value="unbanned">Разбанился</option>
                     </select>
                 </div>
             </div>
             
-            <!-- Поля для Трейдбана -->
-            <div class="stat-row" id="tradeban-inputs-row" style="display:none; justify-content: flex-end; gap: 5px; margin-top: 8px;">
-                <input type="number" id="tradeban-days" class="tradeban-input" placeholder="Дн">
-                <input type="number" id="tradeban-hours" class="tradeban-input" placeholder="Чс">
-                <button class="sq-btn" style="width: 32px; height: 32px; font-size: 14px;" onclick="saveTradebanTimer()">💾</button>
+            <!-- Поля для Трейдбана (Точная / Примерная) -->
+            <div id="ban-ui" style="display:none; flex-direction:column; align-items:flex-end; gap:5px; margin-top:8px;">
+                <div style="font-size:13px; margin-bottom:5px; font-weight:bold;">
+                    Дата: 
+                    <label style="font-weight:normal; margin-right:5px; cursor:pointer;"><input type="radio" name="ban_type" value="ban_exact" checked onchange="toggleBanUI()"> Точная</label>
+                    <label style="font-weight:normal; cursor:pointer;"><input type="radio" name="ban_type" value="ban_approx" onchange="toggleBanUI()"> Примерная</label>
+                </div>
+                <div style="display:flex; gap:5px;" id="ban-exact-inputs">
+                    <input type="text" id="ban-date" class="snat-input" placeholder="ДД.ММ">
+                    <input type="time" id="ban-time" class="snat-input" style="width: 75px;" step="600">
+                    <button class="sq-btn" style="width: 32px; height: 32px; font-size: 14px;" onclick="saveBanExact()">💾</button>
+                </div>
+                <div style="display:none; gap:5px;" id="ban-approx-inputs">
+                    <input type="number" id="ban-days" class="tradeban-input" placeholder="Дней">
+                    <button class="sq-btn" style="width: 32px; height: 32px; font-size: 14px;" onclick="saveBanApprox()">💾</button>
+                </div>
             </div>
 
-            <!-- Поля для Снятых (Дата и Время) -->
-            <div class="stat-row" id="snat-inputs-row" style="display:none; justify-content: flex-end; gap: 5px; margin-top: 8px;">
-                <input type="text" id="snat-date" class="snat-input" placeholder="ДД.ММ">
-                <input type="time" id="snat-time" class="snat-input" style="width: 75px;" step="600">
-                <button class="sq-btn" style="width: 32px; height: 32px; font-size: 14px;" onclick="saveSnatTimer()">💾</button>
+            <!-- Поля для Снятых (Флажки) -->
+            <div id="snat-ui" style="display:none; flex-direction:column; align-items:flex-end; gap:5px; margin-top:8px;">
+                <div style="font-size:13px; margin-bottom:5px; font-weight:bold;">
+                    Тип: 
+                    <label style="font-weight:normal; margin-right:5px; cursor:pointer;"><input type="radio" name="snat_type" value="snat" checked> Снят</label>
+                    <label style="font-weight:normal; margin-right:5px; cursor:pointer;"><input type="radio" name="snat_type" value="snat_work"> Ведение</label>
+                    <label style="font-weight:normal; cursor:pointer;"><input type="radio" name="snat_type" value="snat_vac"> ВАК</label>
+                </div>
+                <div style="display:flex; gap:5px;">
+                    <input type="text" id="snat-date" class="snat-input" placeholder="ДД.ММ">
+                    <input type="time" id="snat-time" class="snat-input" style="width: 75px;" step="600">
+                    <button class="sq-btn" style="width: 32px; height: 32px; font-size: 14px;" onclick="saveSnat()">💾</button>
+                </div>
             </div>
         </div>
 
@@ -183,9 +200,7 @@
                         document.getElementById('detail-status').innerHTML = getStatusText(upUser);
                         document.getElementById('detail-hours').innerText = upUser.hours;
                         document.getElementById('detail-inv').innerText = upUser.inv;
-                    } else {
-                        showList(); 
-                    }
+                    } else { showList(); }
                 }
                 if (manual) showToast("Данные обновлены ✅");
             } catch(e) {}
@@ -227,6 +242,17 @@
         function getStatusClass(u) { return u.game ? "bg-ingame" : (u.status === 1 ? "bg-online" : (u.status === 3 || u.status === 4 ? "bg-away" : "")); }
         function getStatusText(u) { return u.game ? "🎮 " + u.game : (u.status === 1 ? "🟢 В сети" : (u.status === 0 ? "🔴 Оффлайн" : "🟡 Отошел")); }
 
+        function formatTimeLeft(targetTime) {
+            let tl = targetTime - Math.floor(Date.now() / 1000);
+            if (tl <= 0) return "Истекает...";
+            let d = Math.floor(tl / 86400);
+            let h = Math.floor((tl % 86400) / 3600);
+            let m = Math.floor((tl % 3600) / 60);
+            if (d > 0) return `${d}д ${h}ч`;
+            if (h > 0) return `${h}ч ${m}м`;
+            return `${m}м`;
+        }
+
         function renderList(filteredData = usersData) {
             const container = document.getElementById('users-container'); container.innerHTML = '';
             filteredData.forEach(user => {
@@ -234,28 +260,19 @@
                 let bell = showBells ? `<div class="bell-icon" onclick="toggleNotif(event, '${user.id}')">${user.notif ? '🔔' : '🔕'}</div>` : '';
                 
                 let tbText = "";
-                
-                if (user.tb_status === "ban") {
-                    let timeLeft = user.tb_time - Math.floor(Date.now()/1000);
-                    if(timeLeft > 0) {
-                        let d = Math.floor(timeLeft / 86400);
-                        let h = Math.floor((timeLeft % 86400) / 3600);
-                        tbText = `<div class="tb-status-text text-ban">⏳ Трейдбан: ${d}д ${h}ч</div>`;
-                    } else { tbText = `<div class="tb-status-text text-ban">⏳ Истекает...</div>`; }
+                let timerStr = user.tb_time ? `(⏳ ${formatTimeLeft(user.tb_time)})` : "";
+                let timerHtml = user.tb_time ? `<span style="color:#7f91a4; font-weight:normal; margin-left: 4px; font-size:10px;">${timerStr}</span>` : "";
+
+                if (user.tb_status === "ban_exact" || user.tb_status === "ban_approx") {
+                    tbText = `<div class="tb-status-text text-ban">⏳ Трейдбан ${timerHtml}</div>`;
                 } else if (user.tb_status === "ready") { 
                     tbText = `<div class="tb-status-text text-ready">🔓 Можно снимать</div>`;
-                } else if (['snat', 'work', 'vac'].includes(user.tb_status)) {
-                    let timeLeft = user.tb_time - Math.floor(Date.now()/1000);
-                    let timerStr = timeLeft > 0 ? `(⏳ ${Math.floor(timeLeft / 86400)}д ${Math.floor((timeLeft % 86400) / 3600)}ч)` : "(⏳ Истекает...)";
-                    let timerHtml = `<span style="color:#7f91a4; font-weight:normal; margin-left: 4px; font-size:10px;">${timerStr}</span>`;
-
-                    if (user.tb_status === "snat") {
-                        tbText = `<div class="tb-status-text"><span class="text-ready">✅ Снят</span>${timerHtml}</div>`;
-                    } else if (user.tb_status === "work") {
-                        tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#FFC107;">🤝 Ведение</span>${timerHtml}</div>`;
-                    } else if (user.tb_status === "vac") {
-                        tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#F44336;">🛑 ВАК</span>${timerHtml}</div>`;
-                    }
+                } else if (user.tb_status === "snat") {
+                    tbText = `<div class="tb-status-text"><span class="text-ready">✅ Снят</span>${timerHtml}</div>`;
+                } else if (user.tb_status === "snat_work") {
+                    tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#FFC107;">🤝 Ведение</span>${timerHtml}</div>`;
+                } else if (user.tb_status === "snat_vac") {
+                    tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#F44336;">🛑 ВАК</span>${timerHtml}</div>`;
                 } else if (user.tb_status === "unbanned") {
                     tbText = `<div class="tb-status-text text-unbanned">💸 Разбанился(был снят)!</div>`;
                 }
@@ -294,78 +311,108 @@
             }
         });
 
+        // --- ЛОГИКА ПАРАМЕТРОВ ---
         function handleTradebanChange() {
             const val = document.getElementById('tradeban-select').value;
-            const banRow = document.getElementById('tradeban-inputs-row');
-            const snatRow = document.getElementById('snat-inputs-row');
+            const banUI = document.getElementById('ban-ui');
+            const snatUI = document.getElementById('snat-ui');
             
-            banRow.style.display = 'none';
-            snatRow.style.display = 'none';
+            banUI.style.display = 'none';
+            snatUI.style.display = 'none';
             
             if (val === 'ban') {
-                banRow.style.display = 'flex';
-                document.getElementById('tradeban-days').focus();
-            } else if (['snat', 'work', 'vac'].includes(val)) {
-                snatRow.style.display = 'flex';
+                banUI.style.display = 'flex';
+                toggleBanUI();
+            } else if (val === 'snat') {
+                snatUI.style.display = 'flex';
                 
+                // АВТО-ЗАПОЛНЕНИЕ ТЕКУЩЕГО ВРЕМЕНИ ДЛЯ СНЯТИЯ
                 const now = new Date();
-                const d = String(now.getDate()).padStart(2, '0');
-                const m = String(now.getMonth() + 1).padStart(2, '0');
-                const h = String(now.getHours()).padStart(2, '0');
-                const min = String(now.getMinutes()).padStart(2, '0');
-                
-                document.getElementById('snat-date').value = `${d}.${m}`;
-                document.getElementById('snat-time').value = `${h}:${min}`;
-                
-                document.getElementById('snat-date').focus();
+                document.getElementById('snat-date').value = `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}`;
+                document.getElementById('snat-time').value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
             } else {
-                saveTradeban(val, 0);
+                saveTradebanState(val, 0);
             }
         }
 
-        function saveTradebanTimer() {
-            const d = parseInt(document.getElementById('tradeban-days').value) || 0;
-            const h = parseInt(document.getElementById('tradeban-hours').value) || 0;
-            if(d === 0 && h === 0) return showToast("Введи дни или часы!");
-            const unlockTime = Math.floor(Date.now() / 1000) + (d * 86400) + (h * 3600);
-            saveTradeban('ban', unlockTime);
+        function toggleBanUI() {
+            const type = document.querySelector('input[name="ban_type"]:checked').value;
+            if(type === 'ban_exact') {
+                document.getElementById('ban-exact-inputs').style.display = 'flex';
+                document.getElementById('ban-approx-inputs').style.display = 'none';
+                
+                const now = new Date();
+                document.getElementById('ban-date').value = `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}`;
+                document.getElementById('ban-time').value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            } else {
+                document.getElementById('ban-exact-inputs').style.display = 'none';
+                document.getElementById('ban-approx-inputs').style.display = 'flex';
+            }
         }
-        
-        function saveSnatTimer() {
-            const dateStr = document.getElementById('snat-date').value.trim();
-            const timeStr = document.getElementById('snat-time').value.trim();
-            if (!dateStr || !timeStr) return showToast("Введи дату (ДД.ММ) и время!");
+
+        // Парсер даты
+        function getUnixFromInputs(dateId, timeId) {
+            const dateStr = document.getElementById(dateId).value.trim();
+            const timeStr = document.getElementById(timeId).value.trim();
+            if (!dateStr || !timeStr) return null;
             
-            const parts = dateStr.split('.');
-            if (parts.length !== 2) return showToast("Формат даты: ДД.ММ");
-            const d = parseInt(parts[0]); const m = parseInt(parts[1]);
+            const dParts = dateStr.split('.');
+            if (dParts.length !== 2) return null;
+            const d = parseInt(dParts[0]); const m = parseInt(dParts[1]);
+            
             const tParts = timeStr.split(':');
             const h = parseInt(tParts[0]); const min = parseInt(tParts[1]);
+            if (isNaN(d) || isNaN(m) || isNaN(h) || isNaN(min)) return null;
             
             const now = new Date();
-            let targetYear = now.getFullYear();
-            if (now.getMonth() === 11 && m === 1) targetYear++; 
-            
-            const eventDate = new Date(targetYear, m - 1, d, h, min);
-            
-            const unlockTime = Math.floor(eventDate.getTime() / 1000) + 7 * 86400;
-            const status = document.getElementById('tradeban-select').value;
-            saveTradeban(status, unlockTime);
+            const ev = new Date(now.getFullYear(), m - 1, d, h, min);
+            return Math.floor(ev.getTime() / 1000);
         }
 
-        document.getElementById("tradeban-days").addEventListener("keydown", e => { if (e.key === "Enter") { saveTradebanTimer(); document.getElementById("tradeban-days").blur();} });
-        document.getElementById("tradeban-hours").addEventListener("keydown", e => { if (e.key === "Enter") { saveTradebanTimer(); document.getElementById("tradeban-hours").blur();} });
-        document.getElementById("snat-date").addEventListener("keydown", e => { if (e.key === "Enter") { saveSnatTimer(); document.getElementById("snat-date").blur();} });
-        document.getElementById("snat-time").addEventListener("keydown", e => { if (e.key === "Enter") { saveSnatTimer(); document.getElementById("snat-time").blur();} });
+        function saveBanExact() {
+            const unix = getUnixFromInputs('ban-date', 'ban-time');
+            if(!unix) return showToast("Введи дату (ДД.ММ) и время!");
+            saveTradebanState('ban_exact', unix); // Время разбана = точное время
+        }
 
-        function saveTradeban(status, timeStamp) {
+        function saveBanApprox() {
+            const days = parseInt(document.getElementById('ban-days').value) || 0;
+            if(days <= 0) return showToast("Введи количество дней!");
+            const unlockTime = Math.floor(Date.now() / 1000) + (days * 86400);
+            saveTradebanState('ban_approx', unlockTime);
+        }
+        
+        function saveSnat() {
+            const unix = getUnixFromInputs('snat-date', 'snat-time');
+            if(!unix) return showToast("Введи дату (ДД.ММ) и время!");
+            
+            // Время разбана = Время снятия + ровно 7 дней
+            const unlockTime = unix + 7 * 86400;
+            const status = document.querySelector('input[name="snat_type"]:checked').value;
+            saveTradebanState(status, unlockTime);
+        }
+
+        document.getElementById("ban-date").addEventListener("keydown", e => { if (e.key === "Enter") { saveBanExact(); document.getElementById("ban-date").blur();} });
+        document.getElementById("ban-time").addEventListener("keydown", e => { if (e.key === "Enter") { saveBanExact(); document.getElementById("ban-time").blur();} });
+        document.getElementById("ban-days").addEventListener("keydown", e => { if (e.key === "Enter") { saveBanApprox(); document.getElementById("ban-days").blur();} });
+        
+        document.getElementById("snat-date").addEventListener("keydown", e => { if (e.key === "Enter") { saveSnat(); document.getElementById("snat-date").blur();} });
+        document.getElementById("snat-time").addEventListener("keydown", e => { if (e.key === "Enter") { saveSnat(); document.getElementById("snat-time").blur();} });
+
+        function saveTradebanState(status, timeStamp) {
             if (!currentUser) return;
             currentUser.tb_status = status;
             currentUser.tb_time = timeStamp;
             sendSilentCommand({ action: "update_tradeban", steam_id: currentUser.id, tb_status: status, tb_time: timeStamp });
-            showToast("Сохранено ✅");
-            document.getElementById('tradeban-inputs-row').style.display = 'none';
-            document.getElementById('snat-inputs-row').style.display = 'none';
+            showToast("Параметр сохранен ✅");
+            document.getElementById('ban-ui').style.display = 'none';
+            document.getElementById('snat-ui').style.display = 'none';
+        }
+
+        function fillInputsFromUnix(unix, dateId, timeId) {
+            const d = new Date(unix * 1000);
+            document.getElementById(dateId).value = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`;
+            document.getElementById(timeId).value = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
         }
 
         function switchView(id) {
@@ -390,33 +437,36 @@
             document.getElementById('detail-hours').innerText = currentUser.hours;
             document.getElementById('detail-inv').innerText = currentUser.inv;
             
+            // Настройка селектора только при открытии
             if (!silentUpdate) {
                 const sel = document.getElementById('tradeban-select');
-                const banRow = document.getElementById('tradeban-inputs-row');
-                const snatRow = document.getElementById('snat-inputs-row');
-                sel.value = currentUser.tb_status && currentUser.tb_status !== "none" ? currentUser.tb_status : "none";
-                banRow.style.display = 'none';
-                snatRow.style.display = 'none';
+                const banUI = document.getElementById('ban-ui');
+                const snatUI = document.getElementById('snat-ui');
                 
-                if (sel.value === "ban" && currentUser.tb_time) {
-                    banRow.style.display = 'flex';
-                    let tl = currentUser.tb_time - Math.floor(Date.now()/1000);
-                    if(tl > 0) {
-                        document.getElementById('tradeban-days').value = Math.floor(tl / 86400);
-                        document.getElementById('tradeban-hours').value = Math.floor((tl % 86400) / 3600);
+                banUI.style.display = 'none'; snatUI.style.display = 'none';
+                
+                if (currentUser.tb_status.startsWith('ban_')) {
+                    sel.value = 'ban';
+                    banUI.style.display = 'flex';
+                    document.querySelector(`input[name="ban_type"][value="${currentUser.tb_status}"]`).checked = true;
+                    toggleBanUI();
+                    
+                    if (currentUser.tb_status === 'ban_exact' && currentUser.tb_time) {
+                        fillInputsFromUnix(currentUser.tb_time, 'ban-date', 'ban-time');
+                    } else if (currentUser.tb_status === 'ban_approx' && currentUser.tb_time) {
+                        let tl = currentUser.tb_time - Math.floor(Date.now()/1000);
+                        document.getElementById('ban-days').value = tl > 0 ? Math.ceil(tl / 86400) : "";
                     }
-                } else if (['snat', 'work', 'vac'].includes(sel.value) && currentUser.tb_time) {
-                    snatRow.style.display = 'flex';
-                    const eventDate = new Date((currentUser.tb_time - 7 * 86400) * 1000);
-                    const d = String(eventDate.getDate()).padStart(2, '0');
-                    const m = String(eventDate.getMonth() + 1).padStart(2, '0');
-                    const h = String(eventDate.getHours()).padStart(2, '0');
-                    const min = String(eventDate.getMinutes()).padStart(2, '0');
-                    document.getElementById('snat-date').value = `${d}.${m}`;
-                    document.getElementById('snat-time').value = `${h}:${min}`;
+                } else if (currentUser.tb_status.startsWith('snat')) {
+                    sel.value = 'snat';
+                    snatUI.style.display = 'flex';
+                    document.querySelector(`input[name="snat_type"][value="${currentUser.tb_status}"]`).checked = true;
+                    
+                    if (currentUser.tb_time) {
+                        fillInputsFromUnix(currentUser.tb_time - 7*86400, 'snat-date', 'snat-time');
+                    }
                 } else {
-                    document.getElementById('tradeban-days').value = ""; document.getElementById('tradeban-hours').value = "";
-                    document.getElementById('snat-date').value = ""; document.getElementById('snat-time').value = "";
+                    sel.value = currentUser.tb_status && currentUser.tb_status !== "none" ? currentUser.tb_status : "none";
                 }
                 document.getElementById('detail-note').value = currentUser.note;
             }

@@ -40,8 +40,10 @@
         .stat-row { display: flex; justify-content: space-between; margin-bottom: 8px; align-items: center;} .stat-row:last-child { margin-bottom: 0; } .stat-value { font-weight: bold; }
         
         select { background-color: var(--tg-theme-bg-color, #17212b); color: var(--tg-theme-text-color, #ffffff); border: 1px solid var(--tg-theme-hint-color, #7f91a4); border-radius: 5px; padding: 5px; outline: none; font-weight: bold; font-size: 14px;}
-        .tradeban-input { width: 45px; padding: 5px; border-radius: 5px; background-color: var(--tg-theme-bg-color, #17212b); color: white; border: 1px solid var(--tg-theme-hint-color, #7f91a4); outline: none; text-align: center; font-size: 14px;}
-        .snat-input { width: 55px; padding: 5px; border-radius: 5px; background-color: var(--tg-theme-bg-color, #17212b); color: white; border: 1px solid var(--tg-theme-hint-color, #7f91a4); outline: none; text-align: center; font-size: 14px;}
+        .date-sel { width: 50px; text-align: center; }
+        .tradeban-input { width: 55px; padding: 5px; border-radius: 5px; background-color: var(--tg-theme-bg-color, #17212b); color: white; border: 1px solid var(--tg-theme-hint-color, #7f91a4); outline: none; text-align: center; font-size: 14px;}
+        .snat-input { width: 75px; padding: 4px; border-radius: 5px; background-color: var(--tg-theme-bg-color, #17212b); color: white; border: 1px solid var(--tg-theme-hint-color, #7f91a4); outline: none; text-align: center; font-size: 14px;}
+        .hint-text { font-size: 11px; color: #7f91a4; width: 100%; text-align: right; margin-bottom: 3px; font-style: italic;}
 
         textarea { width: 100%; box-sizing: border-box; padding: 10px; background-color: var(--tg-theme-bg-color, #17212b); color: var(--tg-theme-text-color, #ffffff); border: 1px solid var(--tg-theme-hint-color, #7f91a4); border-radius: 8px; min-height: 80px; resize: none; font-family: inherit; margin-bottom: 15px; }
         
@@ -100,16 +102,21 @@
             
             <!-- Поля для Трейдбана (Точная / Примерная) -->
             <div id="ban-ui" style="display:none; flex-direction:column; align-items:flex-end; gap:5px; margin-top:8px;">
-                <div style="font-size:13px; margin-bottom:5px; font-weight:bold;">
+                <div style="font-size:13px; font-weight:bold;">
                     Дата: 
                     <label style="font-weight:normal; margin-right:5px; cursor:pointer;"><input type="radio" name="ban_type" value="ban_exact" checked onchange="toggleBanUI()"> Точная</label>
                     <label style="font-weight:normal; cursor:pointer;"><input type="radio" name="ban_type" value="ban_approx" onchange="toggleBanUI()"> Примерная</label>
                 </div>
-                <div style="display:flex; gap:5px;" id="ban-exact-inputs">
-                    <input type="text" id="ban-date" class="snat-input" placeholder="ДД.ММ">
-                    <input type="time" id="ban-time" class="snat-input" style="width: 75px;" step="600">
+                <div id="ban-hint" class="hint-text">(точная дата конца тб:)</div>
+                
+                <div style="display:flex; gap:5px; align-items:center;" id="ban-exact-inputs">
+                    <select id="ban-day" class="date-sel"></select>
+                    <span style="font-weight:bold; color:#7f91a4;">.</span>
+                    <select id="ban-month" class="date-sel"></select>
+                    <input type="time" id="ban-time" class="snat-input" step="600">
                     <button class="sq-btn" style="width: 32px; height: 32px; font-size: 14px;" onclick="saveBanExact()">💾</button>
                 </div>
+                
                 <div style="display:none; gap:5px;" id="ban-approx-inputs">
                     <input type="number" id="ban-days" class="tradeban-input" placeholder="Дней">
                     <button class="sq-btn" style="width: 32px; height: 32px; font-size: 14px;" onclick="saveBanApprox()">💾</button>
@@ -118,15 +125,18 @@
 
             <!-- Поля для Снятых (Флажки) -->
             <div id="snat-ui" style="display:none; flex-direction:column; align-items:flex-end; gap:5px; margin-top:8px;">
-                <div style="font-size:13px; margin-bottom:5px; font-weight:bold;">
+                <div style="font-size:13px; font-weight:bold;">
                     Тип: 
                     <label style="font-weight:normal; margin-right:5px; cursor:pointer;"><input type="radio" name="snat_type" value="snat" checked> Снят</label>
                     <label style="font-weight:normal; margin-right:5px; cursor:pointer;"><input type="radio" name="snat_type" value="snat_work"> Ведение</label>
                     <label style="font-weight:normal; cursor:pointer;"><input type="radio" name="snat_type" value="snat_vac"> ВАК</label>
                 </div>
-                <div style="display:flex; gap:5px;">
-                    <input type="text" id="snat-date" class="snat-input" placeholder="ДД.ММ">
-                    <input type="time" id="snat-time" class="snat-input" style="width: 75px;" step="600">
+                <div class="hint-text">(время, когда тип был снят)</div>
+                <div style="display:flex; gap:5px; align-items:center;">
+                    <select id="snat-day" class="date-sel"></select>
+                    <span style="font-weight:bold; color:#7f91a4;">.</span>
+                    <select id="snat-month" class="date-sel"></select>
+                    <input type="time" id="snat-time" class="snat-input" step="600">
                     <button class="sq-btn" style="width: 32px; height: 32px; font-size: 14px;" onclick="saveSnat()">💾</button>
                 </div>
             </div>
@@ -149,6 +159,10 @@
             <span>Колокольчики</span>
             <label class="switch"><input type="checkbox" id="toggle-bells" onchange="saveSettings()"><span class="slider"></span></label>
         </div>
+        <div class="setting-row">
+            <div>Важные уведомления<br><span style="color:#7f91a4; font-size:11px;">(Только статус сети и ник)</span></div>
+            <label class="switch"><input type="checkbox" id="toggle-important" onchange="saveSettings()"><span class="slider"></span></label>
+        </div>
     </div>
 
     <script>
@@ -157,8 +171,24 @@
 
         let currentUser = null;
         let usersData = [];
+        
         let showBells = localStorage.getItem('showBells') !== 'false';
         document.getElementById('toggle-bells').checked = showBells;
+        
+        let importantOnly = localStorage.getItem('importantOnly') === 'true';
+        document.getElementById('toggle-important').checked = importantOnly;
+
+        // Генерируем опции для дат
+        function populateDateSelects() {
+            let days = '', months = '';
+            for(let i=1; i<=31; i++) days += `<option value="${i}">${String(i).padStart(2,'0')}</option>`;
+            for(let i=1; i<=12; i++) months += `<option value="${i}">${String(i).padStart(2,'0')}</option>`;
+            document.getElementById('ban-day').innerHTML = days;
+            document.getElementById('ban-month').innerHTML = months;
+            document.getElementById('snat-day').innerHTML = days;
+            document.getElementById('snat-month').innerHTML = months;
+        }
+        populateDateSelects();
 
         let isEditing = false;
         document.addEventListener('focusin', (e) => {
@@ -325,10 +355,9 @@
                 toggleBanUI();
             } else if (val === 'snat') {
                 snatUI.style.display = 'flex';
-                
-                // АВТО-ЗАПОЛНЕНИЕ ТЕКУЩЕГО ВРЕМЕНИ ДЛЯ СНЯТИЯ
                 const now = new Date();
-                document.getElementById('snat-date').value = `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}`;
+                document.getElementById('snat-day').value = now.getDate();
+                document.getElementById('snat-month').value = now.getMonth() + 1;
                 document.getElementById('snat-time').value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
             } else {
                 saveTradebanState(val, 0);
@@ -340,39 +369,41 @@
             if(type === 'ban_exact') {
                 document.getElementById('ban-exact-inputs').style.display = 'flex';
                 document.getElementById('ban-approx-inputs').style.display = 'none';
+                document.getElementById('ban-hint').innerText = '(точная дата конца тб:)';
                 
                 const now = new Date();
-                document.getElementById('ban-date').value = `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}`;
+                document.getElementById('ban-day').value = now.getDate();
+                document.getElementById('ban-month').value = now.getMonth() + 1;
                 document.getElementById('ban-time').value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
             } else {
                 document.getElementById('ban-exact-inputs').style.display = 'none';
                 document.getElementById('ban-approx-inputs').style.display = 'flex';
+                document.getElementById('ban-hint').innerText = '(кол-во дней до конца тб:)';
             }
         }
 
-        // Парсер даты
-        function getUnixFromInputs(dateId, timeId) {
-            const dateStr = document.getElementById(dateId).value.trim();
-            const timeStr = document.getElementById(timeId).value.trim();
-            if (!dateStr || !timeStr) return null;
-            
-            const dParts = dateStr.split('.');
-            if (dParts.length !== 2) return null;
-            const d = parseInt(dParts[0]); const m = parseInt(dParts[1]);
+        function getUnixFromInputs(prefix) {
+            const d = parseInt(document.getElementById(`${prefix}-day`).value);
+            const m = parseInt(document.getElementById(`${prefix}-month`).value);
+            const timeStr = document.getElementById(`${prefix}-time`).value.trim();
+            if (!timeStr) return null;
             
             const tParts = timeStr.split(':');
             const h = parseInt(tParts[0]); const min = parseInt(tParts[1]);
             if (isNaN(d) || isNaN(m) || isNaN(h) || isNaN(min)) return null;
             
             const now = new Date();
-            const ev = new Date(now.getFullYear(), m - 1, d, h, min);
+            let targetYear = now.getFullYear();
+            if (now.getMonth() === 11 && m === 1) targetYear++; 
+            
+            const ev = new Date(targetYear, m - 1, d, h, min);
             return Math.floor(ev.getTime() / 1000);
         }
 
         function saveBanExact() {
-            const unix = getUnixFromInputs('ban-date', 'ban-time');
-            if(!unix) return showToast("Введи дату (ДД.ММ) и время!");
-            saveTradebanState('ban_exact', unix); // Время разбана = точное время
+            const unix = getUnixFromInputs('ban');
+            if(!unix) return showToast("Укажи время!");
+            saveTradebanState('ban_exact', unix);
         }
 
         function saveBanApprox() {
@@ -383,20 +414,15 @@
         }
         
         function saveSnat() {
-            const unix = getUnixFromInputs('snat-date', 'snat-time');
-            if(!unix) return showToast("Введи дату (ДД.ММ) и время!");
-            
-            // Время разбана = Время снятия + ровно 7 дней
-            const unlockTime = unix + 7 * 86400;
+            const unix = getUnixFromInputs('snat');
+            if(!unix) return showToast("Укажи время!");
+            const unlockTime = unix + 7 * 86400; // РОВНО ЧЕРЕЗ 7 ДНЕЙ
             const status = document.querySelector('input[name="snat_type"]:checked').value;
             saveTradebanState(status, unlockTime);
         }
 
-        document.getElementById("ban-date").addEventListener("keydown", e => { if (e.key === "Enter") { saveBanExact(); document.getElementById("ban-date").blur();} });
         document.getElementById("ban-time").addEventListener("keydown", e => { if (e.key === "Enter") { saveBanExact(); document.getElementById("ban-time").blur();} });
         document.getElementById("ban-days").addEventListener("keydown", e => { if (e.key === "Enter") { saveBanApprox(); document.getElementById("ban-days").blur();} });
-        
-        document.getElementById("snat-date").addEventListener("keydown", e => { if (e.key === "Enter") { saveSnat(); document.getElementById("snat-date").blur();} });
         document.getElementById("snat-time").addEventListener("keydown", e => { if (e.key === "Enter") { saveSnat(); document.getElementById("snat-time").blur();} });
 
         function saveTradebanState(status, timeStamp) {
@@ -409,10 +435,11 @@
             document.getElementById('snat-ui').style.display = 'none';
         }
 
-        function fillInputsFromUnix(unix, dateId, timeId) {
+        function fillInputsFromUnix(unix, prefix) {
             const d = new Date(unix * 1000);
-            document.getElementById(dateId).value = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`;
-            document.getElementById(timeId).value = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+            document.getElementById(`${prefix}-day`).value = d.getDate();
+            document.getElementById(`${prefix}-month`).value = d.getMonth() + 1;
+            document.getElementById(`${prefix}-time`).value = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
         }
 
         function switchView(id) {
@@ -437,7 +464,7 @@
             document.getElementById('detail-hours').innerText = currentUser.hours;
             document.getElementById('detail-inv').innerText = currentUser.inv;
             
-            // Настройка селектора только при открытии
+            // Настройка полей только при открытии
             if (!silentUpdate) {
                 const sel = document.getElementById('tradeban-select');
                 const banUI = document.getElementById('ban-ui');
@@ -452,7 +479,7 @@
                     toggleBanUI();
                     
                     if (currentUser.tb_status === 'ban_exact' && currentUser.tb_time) {
-                        fillInputsFromUnix(currentUser.tb_time, 'ban-date', 'ban-time');
+                        fillInputsFromUnix(currentUser.tb_time, 'ban');
                     } else if (currentUser.tb_status === 'ban_approx' && currentUser.tb_time) {
                         let tl = currentUser.tb_time - Math.floor(Date.now()/1000);
                         document.getElementById('ban-days').value = tl > 0 ? Math.ceil(tl / 86400) : "";
@@ -461,9 +488,8 @@
                     sel.value = 'snat';
                     snatUI.style.display = 'flex';
                     document.querySelector(`input[name="snat_type"][value="${currentUser.tb_status}"]`).checked = true;
-                    
                     if (currentUser.tb_time) {
-                        fillInputsFromUnix(currentUser.tb_time - 7*86400, 'snat-date', 'snat-time');
+                        fillInputsFromUnix(currentUser.tb_time - 7*86400, 'snat');
                     }
                 } else {
                     sel.value = currentUser.tb_status && currentUser.tb_status !== "none" ? currentUser.tb_status : "none";
@@ -472,7 +498,19 @@
             }
         }
 
-        function saveSettings() { showBells = document.getElementById('toggle-bells').checked; localStorage.setItem('showBells', showBells); filterList(); }
+        function saveSettings() { 
+            showBells = document.getElementById('toggle-bells').checked; 
+            localStorage.setItem('showBells', showBells); 
+            
+            importantOnly = document.getElementById('toggle-important').checked;
+            localStorage.setItem('importantOnly', importantOnly);
+            
+            filterList(); 
+            // Отправляем настройку важных уведомлений в бота
+            sendSilentCommand({ action: "set_important", value: importantOnly ? 1 : 0 });
+            showToast("Настройки сохранены ✅");
+        }
+
         document.getElementById("detail-note").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveNote(); document.getElementById("detail-note").blur();} });
 
         function toggleNotif(event, id) {

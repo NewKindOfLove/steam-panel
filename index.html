@@ -19,20 +19,18 @@
         .avatar-container { position: relative; margin-right: 15px; }
         .avatar-small { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; }
         
-        /* ЦВЕТА КРУЖОЧКОВ */
         .status-badge { position: absolute; bottom: 0; right: 0; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--tg-theme-secondary-bg-color, #242f3d); display: none; }
         .bg-online { background-color: #4CAF50; display: block; } 
-        .bg-ingame { background-color: #7FFF00; display: block; box-shadow: 0 0 5px #7FFF00;} /* Яркий салатовый */
+        .bg-ingame { background-color: #7FFF00; display: block; box-shadow: 0 0 5px #7FFF00;} 
         .bg-away { background-color: #FFC107; display: block; }
         
         .user-info-short { flex-grow: 1; font-weight: bold; font-size: 16px; margin-right: 30px;} 
         .bell-icon { font-size: 18px; padding: 5px; cursor: pointer; position: absolute; top: 8px; right: 8px; }
         
-        /* Стили для текста обработки справа снизу */
         .tb-status-text { position: absolute; bottom: 6px; right: 12px; font-size: 11px; font-weight: bold; letter-spacing: 0.3px; }
         .text-ready { color: #4CAF50; }
         .text-ban { color: #FF9800; }
-        .text-unbanned { color: #39FF14; } /* Неоновый зеленый для разбана */
+        .text-unbanned { color: #39FF14; } 
 
         .nav-bar { display: flex; justify-content: space-between; margin-bottom: 20px; }
         .card-header { display: flex; flex-direction: column; align-items: center; text-align: center; margin-bottom: 20px; }
@@ -52,6 +50,7 @@
         .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 24px; }
         .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
         input:checked + .slider { background-color: var(--tg-theme-button-color, #5288c1); } input:checked + .slider:before { transform: translateX(16px); }
+        
         #toast { visibility: hidden; min-width: 200px; background-color: var(--tg-theme-button-color, #5288c1); color: var(--tg-theme-button-text-color, #ffffff); text-align: center; border-radius: 8px; padding: 12px; position: fixed; z-index: 1000; left: 50%; bottom: 20px; transform: translateX(-50%); font-size: 14px; opacity: 0; transition: opacity 0.3s, bottom 0.3s; }
         #toast.show { visibility: visible; opacity: 1; bottom: 30px; }
     </style>
@@ -170,6 +169,7 @@
                 if(document.getElementById('list-view').classList.contains('active-view')) {
                     filterList(); 
                 } else if (currentUser) {
+                    // Передаем true, чтобы UI не сбрасывался во время автообновления
                     showDetail(currentUser.id, true);
                 }
                 if (manual) showToast("Данные обновлены ✅");
@@ -277,7 +277,7 @@
                     return;
                 }
                 sendSilentCommand({ action: "add_user", url: input });
-                showToast("Добавляю... Юзер скоро появится."); 
+                showToast("Добавляю... Данные скоро появятся."); 
                 document.getElementById('new-user-input').value = "";
             }
         });
@@ -302,7 +302,6 @@
             }
         }
 
-        // Сохранение Трейдбана (Дни и Часы)
         function saveTradebanTimer() {
             const d = parseInt(document.getElementById('tradeban-days').value) || 0;
             const h = parseInt(document.getElementById('tradeban-hours').value) || 0;
@@ -311,7 +310,6 @@
             saveTradeban('ban', unlockTime);
         }
         
-        // Сохранение Снятия (Дата и Время) -> Таймер на 7 дней вперед
         function saveSnatTimer() {
             const dateStr = document.getElementById('snat-date').value.trim();
             const timeStr = document.getElementById('snat-time').value.trim();
@@ -330,10 +328,7 @@
             if(isNaN(h) || isNaN(min)) return showToast("Неверное время!");
             
             const now = new Date();
-            // Подставляем текущий год автоматически
             const eventDate = new Date(now.getFullYear(), m - 1, d, h, min);
-            
-            // Время разблокировки: ровно 7 дней спустя от события
             const unlockTime = Math.floor(eventDate.getTime() / 1000) + 7 * 86400;
             const status = document.getElementById('tradeban-select').value;
             saveTradeban(status, unlockTime);
@@ -383,42 +378,43 @@
             document.getElementById('detail-hours').innerText = currentUser.hours;
             document.getElementById('detail-inv').innerText = currentUser.inv;
             
-            // Настройка селектора
-            const sel = document.getElementById('tradeban-select');
-            const banRow = document.getElementById('tradeban-inputs-row');
-            const snatRow = document.getElementById('snat-inputs-row');
-            
-            sel.value = currentUser.tb_status && currentUser.tb_status !== "none" ? currentUser.tb_status : "none";
-            
-            banRow.style.display = 'none';
-            snatRow.style.display = 'none';
-            
-            if (sel.value === "ban" && currentUser.tb_time && !silentUpdate) {
-                banRow.style.display = 'flex';
-                let tl = currentUser.tb_time - Math.floor(Date.now()/1000);
-                if(tl > 0) {
-                    document.getElementById('tradeban-days').value = Math.floor(tl / 86400);
-                    document.getElementById('tradeban-hours').value = Math.floor((tl % 86400) / 3600);
-                }
-            } else if (['snat', 'work', 'vac'].includes(sel.value) && currentUser.tb_time && !silentUpdate) {
-                snatRow.style.display = 'flex';
-                // Высчитываем обратно время события (разбан минус 7 дней)
-                const eventDate = new Date((currentUser.tb_time - 7 * 86400) * 1000);
-                const d = String(eventDate.getDate()).padStart(2, '0');
-                const m = String(eventDate.getMonth() + 1).padStart(2, '0');
-                const h = String(eventDate.getHours()).padStart(2, '0');
-                const min = String(eventDate.getMinutes()).padStart(2, '0');
+            // Если это НЕ тихое фоновое обновление - настраиваем поля
+            if (!silentUpdate) {
+                const sel = document.getElementById('tradeban-select');
+                const banRow = document.getElementById('tradeban-inputs-row');
+                const snatRow = document.getElementById('snat-inputs-row');
                 
-                document.getElementById('snat-date').value = `${d}.${m}`;
-                document.getElementById('snat-time').value = `${h}:${min}`;
-            } else if (!silentUpdate) {
-                document.getElementById('tradeban-days').value = "";
-                document.getElementById('tradeban-hours').value = "";
-                document.getElementById('snat-date').value = "";
-                document.getElementById('snat-time').value = "";
-            }
+                sel.value = currentUser.tb_status && currentUser.tb_status !== "none" ? currentUser.tb_status : "none";
+                
+                banRow.style.display = 'none';
+                snatRow.style.display = 'none';
+                
+                if (sel.value === "ban" && currentUser.tb_time) {
+                    banRow.style.display = 'flex';
+                    let tl = currentUser.tb_time - Math.floor(Date.now()/1000);
+                    if(tl > 0) {
+                        document.getElementById('tradeban-days').value = Math.floor(tl / 86400);
+                        document.getElementById('tradeban-hours').value = Math.floor((tl % 86400) / 3600);
+                    }
+                } else if (['snat', 'work', 'vac'].includes(sel.value) && currentUser.tb_time) {
+                    snatRow.style.display = 'flex';
+                    const eventDate = new Date((currentUser.tb_time - 7 * 86400) * 1000);
+                    const d = String(eventDate.getDate()).padStart(2, '0');
+                    const m = String(eventDate.getMonth() + 1).padStart(2, '0');
+                    const h = String(eventDate.getHours()).padStart(2, '0');
+                    const min = String(eventDate.getMinutes()).padStart(2, '0');
+                    
+                    document.getElementById('snat-date').value = `${d}.${m}`;
+                    document.getElementById('snat-time').value = `${h}:${min}`;
+                } else {
+                    document.getElementById('tradeban-days').value = "";
+                    document.getElementById('tradeban-hours').value = "";
+                    document.getElementById('snat-date').value = "";
+                    document.getElementById('snat-time').value = "";
+                }
 
-            if(!silentUpdate) document.getElementById('detail-note').value = currentUser.note;
+                document.getElementById('detail-note').value = currentUser.note;
+            }
         }
 
         function saveSettings() { showBells = document.getElementById('toggle-bells').checked; localStorage.setItem('showBells', showBells); filterList(); }

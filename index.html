@@ -6,13 +6,12 @@
     <title>Steam Panel</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        /* УБРАЛ МЫЛО (НЕТ MIN-WIDTH, ЕСТЬ WIDTH 100%) */
         body { background-color: #0f0f0f; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0 auto; padding: 0; width: 100%; max-width: 800px; min-height: 750px; }
         .container { padding: 15px; display: none; } .active-view { display: block; }
         
-        /* ОТСТУП ДЛЯ СЧЕТЧИКА */
-        .top-bar { display: flex; gap: 8px; margin-bottom: 25px; align-items: stretch; }
-        .top-bar input { flex-grow: 1; padding: 10px; border-radius: 8px; background-color: #1e1e1e; color: #ffffff; border: 1px solid #333333; outline: none; font-size: 14px; box-sizing: border-box; }
+        /* ИДЕАЛЬНЫЙ РЯД КНОПОК БЕЗ ЩЕЛЕЙ */
+        .top-bar { display: flex; gap: 8px; margin-bottom: 15px; align-items: stretch; }
+        .top-bar input { flex-grow: 1; padding: 10px; border-radius: 8px; background-color: #1e1e1e; color: #7f91a4; border: 1px solid #333333; outline: none; font-size: 14px; box-sizing: border-box; font-weight: bold; }
         
         .sq-btn { width: 42px; height: 42px; border-radius: 8px; border: 1px solid #333333; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; cursor: pointer; background-color: #252525; color: #ffffff; transition: 0.2s; flex-shrink: 0;}
         .sq-btn:active { opacity: 0.7; transform: scale(0.95); background-color: #333333; } 
@@ -85,23 +84,21 @@
     <!-- 1. СПИСОК И ГЛАВНОЕ МЕНЮ -->
     <div class="container active-view" id="list-view">
         <div class="top-bar">
-            <input type="text" id="new-user-input" placeholder="Поиск (Имя или ID)">
-            <div style="position: relative; display: flex; align-items: center; justify-content: center;">
-                <button id="btn-add-user" class="sq-btn btn-secondary" onclick="addUserFromInput()">➕</button>
-                <span id="total-users-count" style="position: absolute; top: 46px; font-size: 11px; color: #888888; font-weight: bold; white-space: nowrap;">(0)</span>
-            </div>
+            <!-- ДИНАМИЧЕСКИЙ СЧЕТЧИК ПРЯМО В ПЛЕЙСХОЛДЕРЕ -->
+            <input type="text" id="new-user-input" placeholder="ID, LINK OR USERLINK (0)">
+            <button id="btn-add-user" class="sq-btn btn-secondary" onclick="addUserFromInput()">➕</button>
             <button id="btn-global-refresh" class="sq-btn btn-secondary" onclick="manualRefresh()">⟳</button>
         </div>
         <div style="display:flex; justify-content:space-between; margin-bottom: 15px; gap: 8px;">
             <div style="display: flex; gap: 8px; flex-grow: 1;">
-                <!-- КНОПКИ СОРТИРОВКИ ОДИНАКОВОЙ ШИРИНЫ -->
-                <select id="sort-select" style="width: 140px; flex-shrink: 0;" onchange="filterList()">
+                <!-- КНОПКИ СОРТИРОВКИ -->
+                <select id="sort-select" style="flex: 1; width: 50%;" onchange="filterList(true)">
                     <option value="default">Сначала новые</option>
                     <option value="inv_desc">По цене ($)</option>
                     <option value="tb_asc">По разбану ⏳</option>
                     <option value="param">По параметру 📌</option>
                 </select>
-                <select id="param-select" style="width: 140px; flex-shrink: 0; display: none;" onchange="filterList()">
+                <select id="param-select" style="flex: 1; display: none; width: 50%;" onchange="filterList(true)">
                     <option value="ban">Трейдбан</option>
                     <option value="ready">Можно снимать</option>
                     <option value="snat">Снят</option>
@@ -115,10 +112,11 @@
         
         <div class="user-list" id="users-container">Ожидание данных...</div>
         <div id="hidden-count" style="text-align: center; color: #888888; font-size: 12px; margin-top: 10px; display: none; font-style: italic;"></div>
+        
         <div id="pagination-controls"></div>
     </div>
 
-    <!-- 3. КАРТОЧКА ЮЗЕРА -->
+    <!-- 2. КАРТОЧКА ЮЗЕРА -->
     <div class="container" id="detail-view">
         <div class="nav-bar">
             <button class="sq-btn btn-secondary" onclick="showList()">◀</button>
@@ -198,7 +196,7 @@
         </div>
     </div>
 
-    <!-- 4. НАСТРОЙКИ -->
+    <!-- 3. НАСТРОЙКИ -->
     <div class="container" id="settings-view">
         <div class="nav-bar">
             <button class="sq-btn btn-secondary" onclick="showList()">◀</button>
@@ -302,8 +300,12 @@
                 }
                 usersData = JSON.parse(jsonStr || "[]");
                 
+                // ОБНОВЛЕНИЕ ПЛЕЙСХОЛДЕРА
+                const baseCount = usersData.filter(u => u.is_checker !== 1).length;
+                document.getElementById('new-user-input').placeholder = `ID, LINK OR USERLINK (${baseCount})`;
+
                 if(document.getElementById('list-view').classList.contains('active-view')) {
-                    filterList(); 
+                    filterList(false); // ПЕРЕДАЕМ FALSE, ЧТОБЫ НЕ СБРОСИТЬ СТРАНИЦУ!
                 } else if (currentUser) {
                     const upUser = usersData.find(u => u.id === currentUser.id);
                     if (upUser) {
@@ -369,6 +371,7 @@
         function getStatusClass(u) { return u.game ? "bg-ingame" : (u.status === 1 ? "bg-online" : (u.status === 3 || u.status === 4 ? "bg-away" : "")); }
         function getStatusText(u) { return u.game ? "🎮 " + u.game : (u.status === 1 ? "🟢 В сети" : (u.status === 0 ? "🔴 Оффлайн" : "🟡 Отошел")); }
         
+        // ФИКС ЦВЕТОВ ИНВЕНТАРЯ
         function colorizeInv(text) {
             if (!text || text === "-") return '<span style="color:#888888;">Скрыто 🔒</span>';
             
@@ -452,11 +455,10 @@
             }
         }
 
-        function filterList() {
+        // ПРАВИЛЬНЫЙ ФИЛЬТР СО СБРОСОМ СТРАНИЦЫ
+        function filterList(resetPage = false) {
             const query = document.getElementById('new-user-input').value.trim().toLowerCase();
             let baseUsers = [...usersData].filter(u => u.is_checker !== 1);
-            
-            document.getElementById('total-users-count').innerText = `(${baseUsers.length})`;
             
             let filtered = baseUsers;
             if (query) {
@@ -495,7 +497,7 @@
             }
             
             currentFilteredData = filtered;
-            currentPage = 1;
+            if (resetPage) currentPage = 1; // Сбрасываем только если пользователь менял фильтры
             applyPaginationAndRender();
         }
 
@@ -537,15 +539,16 @@
             }
 
             usersData.unshift({ id: checkId, name: "Загрузка...", avatar: "", url: input, status: 0, hours: "...", inv: "⏳ Сканирую...", tb_status: "none", notif: 1 });
-            filterList();
+            filterList(true);
 
             setButtonLoading('btn-add-user', true, '➕');
+            showToast("Добавляю... ⏳", "info");
             sendSilentCommand({ action: "add_user", url: input }, 6000);
             document.getElementById('new-user-input').value = "";
             document.getElementById('new-user-input').blur();
         }
 
-        document.getElementById("new-user-input").addEventListener("input", filterList);
+        document.getElementById("new-user-input").addEventListener("input", () => filterList(true));
         document.getElementById("new-user-input").addEventListener("keydown", e => { if (e.key === "Enter") addUserFromInput(); });
 
         function handleTradebanChange() {
@@ -618,12 +621,6 @@
             document.getElementById('ban-ui').style.display = 'none'; document.getElementById('snat-ui').style.display = 'none';
         }
 
-        function fillInputsFromUnix(unix, prefix) {
-            const d = new Date(unix * 1000);
-            document.getElementById(`${prefix}-day`).value = String(d.getDate()); document.getElementById(`${prefix}-month`).value = String(d.getMonth() + 1);
-            document.getElementById(`${prefix}-time`).value = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-        }
-
         function switchView(id) {
             ['list-view', 'detail-view', 'settings-view'].forEach(v => {
                 const el = document.getElementById(v);
@@ -631,7 +628,7 @@
             });
             const target = document.getElementById(id);
             if(target) target.classList.add('active-view');
-            if (id === 'list-view') filterList();
+            if (id === 'list-view') filterList(false);
         }
         function showList() { switchView('list-view'); currentUser = null; document.getElementById('new-user-input').value = ""; }
         function openSettings() { switchView('settings-view'); }
@@ -681,7 +678,7 @@
             allNotifs = document.getElementById('toggle-all-notifs').checked; localStorage.setItem('allNotifs', allNotifs);
             usePagination = document.getElementById('toggle-pagination').checked; localStorage.setItem('usePagination', usePagination);
             
-            filterList(); sendSilentCommand({ action: "set_all_notifs", value: allNotifs ? 1 : 0 }, 3000);
+            filterList(true); sendSilentCommand({ action: "set_all_notifs", value: allNotifs ? 1 : 0 }, 3000);
             showToast("Настройки сохранены ✅", "success");
         }
 
@@ -690,7 +687,7 @@
         function toggleNotif(event, id) {
             event.stopPropagation();
             let user = usersData.find(u => u.id === id); user.notif = user.notif ? 0 : 1;
-            filterList(); sendSilentCommand({ action: "toggle_notif", steam_id: id }, 3000);
+            filterList(false); sendSilentCommand({ action: "toggle_notif", steam_id: id }, 3000);
             showToast(user.notif ? "Уведомления включены" : "Уведомления отключены", "info");
         }
 
@@ -702,14 +699,13 @@
             showToast("Примечание сохранено ✅", "success");
         }
 
-        function deleteUser(targetId = null) {
-            const idToDelete = targetId || (currentUser ? currentUser.id : null);
-            if (!idToDelete) return;
+        function deleteUser() {
+            if (!currentUser) return;
             tg.showConfirm("Удалить пользователя из базы?", passed => {
                 if (passed) {
-                    sendSilentCommand({ action: "delete", steam_id: idToDelete }, 3000);
-                    usersData = usersData.filter(u => u.id !== idToDelete);
-                    filterList(); if (!targetId) showList();
+                    sendSilentCommand({ action: "delete", steam_id: currentUser.id }, 3000);
+                    usersData = usersData.filter(u => u.id !== currentUser.id);
+                    filterList(true); showList();
                     showToast("Пользователь удален! ❌", "error");
                 }
             });

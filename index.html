@@ -275,10 +275,11 @@
         let currentFilteredData = [];
         let deletedUserIds = new Set(JSON.parse(localStorage.getItem('deletedUserIds') || '[]'));
         
-        // НОВАЯ СИСТЕМА УМНОГО КЭША (Для моментальной отрисовки)
+        // --- УМНЫЙ КЭШ ДЛЯ ОТОБРАЖЕНИЯ ЗАГЛУШОК ---
         let pendingUsers = []; 
         let commandQueue = [];
         let isCommandSending = false;
+        let pendingCommandsCount = 0;
         
         let currentPage = 1;
         const USERS_PER_PAGE = 10;
@@ -319,36 +320,20 @@
         function updateBotStatus(isOnline) {
             const dot = document.getElementById('bot-dot');
             if(dot) {
-                if(isOnline) {
-                    dot.style.backgroundColor = '#4CAF50';
-                    dot.style.boxShadow = '0 0 6px #4CAF50';
-                } else {
-                    dot.style.backgroundColor = '#F44336';
-                    dot.style.boxShadow = '0 0 6px #F44336';
-                }
+                if(isOnline) { dot.style.backgroundColor = '#4CAF50'; dot.style.boxShadow = '0 0 6px #4CAF50'; } 
+                else { dot.style.backgroundColor = '#F44336'; dot.style.boxShadow = '0 0 6px #F44336'; }
             }
         }
 
         function showToast(msg, type = "info") {
             const toast = document.getElementById("toast");
-            toast.innerText = msg; 
-            toast.className = `show ${type}`;
+            toast.innerText = msg; toast.className = `show ${type}`;
             setTimeout(() => { toast.className = toast.className.replace("show", "").trim(); }, 2500);
         }
         
-        function copyId(text) {
-            navigator.clipboard.writeText(text).then(() => { showToast("ID скопирован! ✅", "success"); }).catch(err => { showToast("Ошибка копирования ❌", "error"); });
-        }
-        
-        function copyLog(event, text) {
-            event.stopPropagation();
-            navigator.clipboard.writeText(text).then(() => { showToast("Номер лога скопирован! ✅", "success"); }).catch(err => { showToast("Ошибка копирования ❌", "error"); });
-        }
-        
-        function copyIdFromList(event, text) {
-            event.stopPropagation(); 
-            navigator.clipboard.writeText(text).then(() => { showToast("ID скопирован! ✅", "success"); }).catch(err => { showToast("Ошибка копирования ❌", "error"); });
-        }
+        function copyId(text) { navigator.clipboard.writeText(text).then(() => { showToast("ID скопирован! ✅", "success"); }).catch(err => { showToast("Ошибка копирования ❌", "error"); }); }
+        function copyLog(event, text) { event.stopPropagation(); navigator.clipboard.writeText(text).then(() => { showToast("Номер лога скопирован! ✅", "success"); }).catch(err => { showToast("Ошибка копирования ❌", "error"); }); }
+        function copyIdFromList(event, text) { event.stopPropagation(); navigator.clipboard.writeText(text).then(() => { showToast("ID скопирован! ✅", "success"); }).catch(err => { showToast("Ошибка копирования ❌", "error"); }); }
         
         function setButtonLoading(btnId, isLoading, originalIcon = '⟳') {
             const btn = document.getElementById(btnId);
@@ -366,41 +351,32 @@
             setButtonLoading('btn-checker-search', false, '🔍');
         }
 
-        // ОБНОВЛЕННАЯ ЛОГИКА ЗАГРУЗКИ БАЗЫ С УМНЫМ КЭШЕМ
         async function fetchLiveDB(manual = false) {
-            if (!DB_PATH || isEditing) return; 
-            
+            if (!DB_PATH || isEditing || pendingCommandsCount > 0) return; 
             try {
                 const r = await fetch(`https://api.telegra.ph/getPage/${DB_PATH}?return_content=true&_=${Date.now()}`);
                 if (r.ok) updateBotStatus(true); else updateBotStatus(false);
-                
                 const data = await r.json();
                 let jsonStr = "";
-                const nodes = data.result.content;
-                if (nodes && nodes.length > 0 && nodes[0].children) {
-                    for (let c of nodes[0].children) if (typeof c === 'string') jsonStr += c;
+                if (data.result && data.result.content && data.result.content.length > 0 && data.result.content[0].children) {
+                    for (let c of data.result.content[0].children) if (typeof c === 'string') jsonStr += c;
                 }
-                
                 let rawData = JSON.parse(jsonStr || "[]");
                 usersData = rawData.filter(u => !deletedUserIds.has(u.id));
 
-                // 1. Очищаем старые заглушки (старше 60 секунд)
-                pendingUsers = pendingUsers.filter(p => (Date.now() - p.timestamp) < 60000);
-                
-                // 2. Убираем заглушки, которые уже прогрузились из облака
+                // Убираем старые заглушки (живут 5 минут)
+                pendingUsers = pendingUsers.filter(p => (Date.now() - p.timestamp) < 300000);
+                // Убираем те, что уже загрузились с сервера
                 pendingUsers = pendingUsers.filter(p => !usersData.some(u => u.id === p.id || (u.url && u.url.includes(p.id)) || (p.id.startsWith('chk_') && u.id === p.id)));
 
-                // 3. Подмешиваем оставшиеся заглушки к базе
                 usersData.unshift(...pendingUsers);
                 
                 const baseCount = usersData.filter(u => u.is_checker !== 1).length;
                 document.getElementById('new-user-input').placeholder = `ID, LINK OR USERLINK (${baseCount})`;
 
-                if(document.getElementById('list-view').classList.contains('active-view')) {
-                    filterList(false);
-                } else if (document.getElementById('checker-view').classList.contains('active-view')) {
-                    renderChecker();
-                } else if (currentUser) {
+                if(document.getElementById('list-view').classList.contains('active-view')) { filterList(false); } 
+                else if (document.getElementById('checker-view').classList.contains('active-view')) { renderChecker(); } 
+                else if (currentUser) {
                     const upUser = usersData.find(u => u.id === currentUser.id);
                     if (upUser) {
                         currentUser = upUser; 
@@ -410,9 +386,7 @@
                     } else { showList(); }
                 }
                 if (manual) showToast("Данные обновлены ✅", "success");
-            } catch(e) {
-                updateBotStatus(false);
-            }
+            } catch(e) { updateBotStatus(false); }
         }
 
         setInterval(fetchLiveDB, 3000);
@@ -430,23 +404,22 @@
             sendSilentCommand({ action: "force_update_single", steam_id: currentUser.id }, "Обновление... ⏳");
         }
 
-        // НОВАЯ СИСТЕМА ОЧЕРЕДИ КОМАНД (Защита от конфликтов Телеграфа)
+        // --- ИДЕАЛЬНАЯ СИСТЕМА ОЧЕРЕДИ КОМАНД ---
         async function processCommandQueue() {
             if (isCommandSending || commandQueue.length === 0) return;
             isCommandSending = true;
-            
-            let { cmdObj, toastMsg } = commandQueue.shift();
+            let { cmdObj, toastMsg, timeoutMs } = commandQueue.shift();
+
             if(toastMsg) showToast(toastMsg, "info");
-            
+
             try {
                 const r = await fetch(`https://api.telegra.ph/getPage/${CMD_PATH}?return_content=true&_=${Date.now()}`);
                 if (r.ok) updateBotStatus(true); else updateBotStatus(false);
                 
                 const data = await r.json();
                 let jsonStr = "";
-                const nodes = data.result.content;
-                if (nodes && nodes.length > 0 && nodes[0].children) {
-                    for (let c of nodes[0].children) if (typeof c === 'string') jsonStr += c;
+                if (data.result && data.result.content && data.result.content.length > 0 && data.result.content[0].children) {
+                    for (let c of data.result.content[0].children) if (typeof c === 'string') jsonStr += c;
                 }
                 let cmds = [];
                 try { cmds = JSON.parse(jsonStr || "[]"); } catch(e){}
@@ -462,25 +435,31 @@
                 formData.append("content", JSON.stringify([{"tag":"p", "children": chunks.length ? chunks : ["[]"]}]));
                 
                 await fetch(`https://api.telegra.ph/editPage/${CMD_PATH}`, { method: "POST", body: formData });
+
+                setTimeout(() => {
+                    pendingCommandsCount--;
+                    if (pendingCommandsCount <= 0) { pendingCommandsCount = 0; fetchLiveDB(false); }
+                    resetAllButtons();
+                    if(cmdObj.action === "force_update" || cmdObj.action === "force_update_single") showToast("Данные обновлены! ✅", "success");
+                    isCommandSending = false;
+                    processCommandQueue();
+                }, timeoutMs);
+
             } catch(e) { 
                 updateBotStatus(false);
                 showToast("Ошибка сети ❌", "error"); 
+                pendingCommandsCount--;
+                if (pendingCommandsCount < 0) pendingCommandsCount = 0;
+                resetAllButtons();
+                isCommandSending = false;
+                processCommandQueue();
             }
-            
-            isCommandSending = false;
-            processCommandQueue(); // Обрабатываем следующую команду
         }
 
-        function sendSilentCommand(cmdObj, toastMsg = null) {
-            commandQueue.push({ cmdObj, toastMsg });
+        function sendSilentCommand(cmdObj, toastMsg = null, timeoutMs = 2000) {
+            pendingCommandsCount++;
+            commandQueue.push({ cmdObj, toastMsg, timeoutMs });
             processCommandQueue();
-            
-            setTimeout(() => {
-                resetAllButtons();
-                if(cmdObj.action === "force_update" || cmdObj.action === "force_update_single") {
-                    showToast("Данные обновлены! ✅", "success");
-                }
-            }, 1500); // Кнопки отпускает быстро
         }
 
         function getStatusClass(u) { return u.game ? "bg-ingame" : (u.status === 1 ? "bg-online" : (u.status === 3 || u.status === 4 ? "bg-away" : "")); }
@@ -489,11 +468,10 @@
         function colorizeInv(text) {
             if (!text || text === "-") return '<span style="color:#888888;">Скрыто 🔒</span>';
             let formatted = text.replace(/\((.*?)\)/, '<span style="font-size: 10px; color: #888888;">($1)</span>');
-            
             if (formatted.includes('Скрыто')) return `<span style="color:#888888;">${formatted}</span>`;
             if (formatted.includes('Неизвестно')) return `<span style="color:#FFC107;">${formatted}</span>`;
             if (formatted.includes('Сканирую')) return `<span style="color:#FFC107;">${formatted}</span>`;
-            if (formatted.includes('Ожидание')) return `<span style="color:#FFC107;">${formatted}</span>`;
+            if (formatted.includes('Очередь')) return `<span style="color:#FFC107;">${formatted}</span>`;
             if (formatted.includes('$')) return `<span style="color: #4CAF50;">${formatted}</span>`;
             return formatted;
         }
@@ -592,9 +570,7 @@
                         let tB = b.tb_time && b.tb_time > now ? b.tb_time : Infinity;
                         return tA - tB;
                     });
-                } else {
-                    filtered.reverse(); 
-                }
+                } else { filtered.reverse(); }
             }
             
             currentFilteredData = filtered;
@@ -605,7 +581,6 @@
         function applyPaginationAndRender() {
             const hiddenCount = usersData.filter(u => u.is_checker !== 1).length - currentFilteredData.length;
             const hiddenEl = document.getElementById('hidden-count');
-            
             if (hiddenCount > 0) { hiddenEl.innerText = `(Скрыто ${hiddenCount} типов из-за сортировки / поиска)`; hiddenEl.style.display = 'block'; } 
             else { hiddenEl.style.display = 'none'; }
 
@@ -629,18 +604,16 @@
             let checkId = input;
             if (input.includes("steamcommunity.com/profiles/")) checkId = input.split("profiles/")[1].replace('/', '');
             else if (input.includes("steamcommunity.com/id/")) checkId = input.split("id/")[1].replace('/', '');
-            
             if (usersData.some(u => u.id === checkId || (u.url && u.url.includes(checkId)))) { return showToast("⚠️ Пользователь уже есть в базе!", "warning"); }
 
-            // Мгновенная заглушка в UI
-            pendingUsers.push({ id: checkId, timestamp: Date.now(), name: "Ожидание бота...", avatar: "", url: input, status: 0, hours: "...", inv: "⏳ Сканирую...", tb_status: "none", notif: 0, is_checker: 0 });
+            // МГНОВЕННАЯ ЗАГЛУШКА (Живет 5 минут)
+            pendingUsers.push({ id: checkId, timestamp: Date.now(), name: "Загрузка...", avatar: "", url: input, status: 0, hours: "...", inv: "⏳ Сканирую...", tb_status: "none", notif: 0, is_checker: 0 });
             usersData.unshift(pendingUsers[pendingUsers.length-1]);
             filterList(true);
 
             setButtonLoading('btn-add-user', true, '➕');
-            sendSilentCommand({ action: "add_user", url: input }, "Добавляю (бот в фоне)... ⏳"); 
-            document.getElementById('new-user-input').value = "";
-            document.getElementById('new-user-input').blur();
+            sendSilentCommand({ action: "add_user", url: input }, "Отправлено боту ⏳", 2000); 
+            document.getElementById('new-user-input').value = ""; document.getElementById('new-user-input').blur();
         }
 
         function submitImport() {
@@ -654,24 +627,20 @@
                 let checkId = url;
                 if (url.includes("steamcommunity.com/profiles/")) checkId = url.split("profiles/")[1].replace('/', '');
                 else if (url.includes("steamcommunity.com/id/")) checkId = url.split("id/")[1].replace('/', '');
-                
                 if (!usersData.some(u => u.id === checkId || (u.url && u.url.includes(checkId)))) { finalUrls.push(url); }
             }
             if (finalUrls.length === 0) return showToast("Все пользователи уже в базе!", "warning");
             
-            // Ставим заглушки в UI для всей пачки
             for (let url of finalUrls) {
                 let checkId = url;
                 if (url.includes("steamcommunity.com/profiles/")) checkId = url.split("profiles/")[1].replace('/', '');
                 else if (url.includes("steamcommunity.com/id/")) checkId = url.split("id/")[1].replace('/', '');
-                
-                // Если ссылка кастомная, делаем ей фейковый ID для ожидания
                 let tempId = /^\d{17}$/.test(checkId) ? checkId : "imp_" + Math.random().toString(36).substr(2, 9);
                 pendingUsers.push({ id: tempId, timestamp: Date.now(), name: "Очередь...", avatar: "", url: url, status: 0, hours: "...", inv: "⏳ В очереди...", tb_status: "none", notif: 0, is_checker: 0 });
                 usersData.unshift(pendingUsers[pendingUsers.length-1]);
             }
             
-            sendSilentCommand({ action: "add_users_batch", urls: finalUrls }, `Массовая загрузка: ${finalUrls.length} шт. ⏳`);
+            sendSilentCommand({ action: "add_users_batch", urls: finalUrls }, `Запущена загрузка ${finalUrls.length} шт. ⏳`, 2000);
             document.getElementById('import-textarea').value = "";
             switchView('list-view');
         }
@@ -690,18 +659,18 @@
             else if (input.includes("steamcommunity.com/id/")) checkId = input.split("id/")[1].replace('/', '');
             
             let chkId = `chk_${checkId}`;
-            pendingUsers.push({ id: chkId, timestamp: Date.now(), name: "Ожидание бота...", avatar: "", url: input, status: 0, hours: "...", inv: "⏳ Сканирую...", tb_status: "none", notif: 0, is_checker: 1 });
+            pendingUsers.push({ id: chkId, timestamp: Date.now(), name: "Загрузка...", avatar: "", url: input, status: 0, hours: "...", inv: "⏳ Сканирую...", tb_status: "none", notif: 0, is_checker: 1 });
             usersData.unshift(pendingUsers[pendingUsers.length-1]);
             
             renderChecker();
             setButtonLoading('btn-checker-search', true, '🔍');
-            sendSilentCommand({ action: "checker_scan", url: input }, "Сканирую CS2 (бот в фоне)...");
+            sendSilentCommand({ action: "checker_scan", url: input }, "Сканирую CS2...", 2000);
             document.getElementById('checker-input').blur();
         }
 
         function approveChecker(id, btnElement) {
             btnElement.innerText = "⏳ Добавляю...";
-            sendSilentCommand({ action: "approve_checker", steam_id: id }, "Переношу в основную базу...");
+            sendSilentCommand({ action: "approve_checker", steam_id: id }, "Переношу в базу...", 2000);
             usersData = usersData.filter(u => { if(u.id === id) { u.is_checker = 0; } return true; });
             setTimeout(renderChecker, 500);
         }
@@ -709,12 +678,7 @@
         function renderChecker() {
             const container = document.getElementById('checker-results'); container.innerHTML = '';
             const checkerUsers = usersData.filter(u => u.is_checker == 1).reverse();
-            
-            if (checkerUsers.length === 0) {
-                container.innerHTML = '<div style="text-align:center; color:#7f91a4; font-size: 14px; margin-top:20px;">Введи ссылку вверху, чтобы проверить аккаунт.</div>';
-                return;
-            }
-            
+            if (checkerUsers.length === 0) { container.innerHTML = '<div style="text-align:center; color:#7f91a4; font-size: 14px; margin-top:20px;">Введи ссылку вверху, чтобы проверить аккаунт.</div>'; return; }
             checkerUsers.forEach(user => {
                 const item = document.createElement('div'); item.className = 'card-stats'; item.style.marginBottom = '10px';
                 let realId = user.id.replace('chk_', '');
@@ -723,8 +687,7 @@
                         <img src="${user.avatar}" class="avatar-small" style="margin-right:12px;">
                         <div style="flex-grow:1; overflow:hidden;">
                             <div style="font-weight:bold; font-size:16px; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">
-                                ${user.name}
-                                <span class="id-badge" onclick="copyIdFromList(event, '${realId}')">(${realId})</span>
+                                ${user.name} <span class="id-badge" onclick="copyIdFromList(event, '${realId}')">(${realId})</span>
                             </div>
                         </div>
                         <button class="sq-btn" style="background-color:#242f3d; width:32px; height:32px; font-size:14px; flex-shrink:0;" onclick="deleteUser('${user.id}')">❌</button>
@@ -743,8 +706,7 @@
             banUI.style.display = 'none'; snatUI.style.display = 'none';
             if (val === 'ban') { banUI.style.display = 'flex'; toggleBanUI(); } 
             else if (val === 'snat') {
-                snatUI.style.display = 'flex';
-                const now = new Date();
+                snatUI.style.display = 'flex'; const now = new Date();
                 document.getElementById('snat-day').value = String(now.getDate()); document.getElementById('snat-month').value = String(now.getMonth() + 1);
                 document.getElementById('snat-time').value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
                 document.getElementById('snat-log').value = currentUser.log || "";
@@ -755,8 +717,7 @@
             const type = document.querySelector('input[name="ban_type"]:checked').value;
             if(type === 'ban_exact') {
                 document.getElementById('ban-exact-inputs').style.display = 'flex'; document.getElementById('ban-approx-inputs').style.display = 'none';
-                document.getElementById('ban-hint').innerHTML = 'Точная дата конца тб:';
-                const now = new Date();
+                document.getElementById('ban-hint').innerHTML = 'Точная дата конца тб:'; const now = new Date();
                 document.getElementById('ban-day').value = String(now.getDate()); document.getElementById('ban-month').value = String(now.getMonth() + 1);
                 document.getElementById('ban-time').value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
             } else {
@@ -770,23 +731,19 @@
             const m = parseInt(document.getElementById(`${prefix}-month`).value);
             const timeStr = document.getElementById(`${prefix}-time`).value.trim();
             if (!timeStr) return null;
-            const tParts = timeStr.split(':');
-            const h = parseInt(tParts[0]); const min = parseInt(tParts[1]);
+            const tParts = timeStr.split(':'); const h = parseInt(tParts[0]); const min = parseInt(tParts[1]);
             if (isNaN(d) || isNaN(m) || isNaN(h) || isNaN(min)) return null;
-            const now = new Date(); let targetYear = now.getFullYear();
-            if (now.getMonth() === 11 && m === 1) targetYear++; 
+            const now = new Date(); let targetYear = now.getFullYear(); if (now.getMonth() === 11 && m === 1) targetYear++; 
             return Math.floor(new Date(targetYear, m - 1, d, h, min).getTime() / 1000);
         }
 
         function saveBanExact() { 
             const unix = getUnixFromInputs('ban'); if(!unix) return showToast("Укажи время!", "error"); 
-            setButtonLoading('btn-save-exact', true, '💾');
-            saveTradebanState('ban_exact', unix); 
+            setButtonLoading('btn-save-exact', true, '💾'); saveTradebanState('ban_exact', unix); 
         }
         function saveBanApprox() { 
             const days = parseInt(document.getElementById('ban-days').value) || 0; 
-            setButtonLoading('btn-save-approx', true, '💾');
-            saveTradebanState('ban_approx', Math.floor(Date.now() / 1000) + (days * 86400)); 
+            setButtonLoading('btn-save-approx', true, '💾'); saveTradebanState('ban_approx', Math.floor(Date.now() / 1000) + (days * 86400)); 
         }
         function saveSnat() {
             const unix = getUnixFromInputs('snat'); if(!unix) return showToast("Укажи время!", "error");
@@ -807,7 +764,7 @@
             
             document.getElementById('ban-ui').style.display = 'none'; document.getElementById('snat-ui').style.display = 'none';
             showDetail(currentUser.id, true); filterList(false); 
-            sendSilentCommand({ action: "update_tradeban", steam_id: currentUser.id, tb_status: status, tb_time: timeStamp, log: logNum }, "Сохраняю...");
+            sendSilentCommand({ action: "update_tradeban", steam_id: currentUser.id, tb_status: status, tb_time: timeStamp, log: logNum }, "Сохраняю...", 2000);
         }
 
         function fillInputsFromUnix(unix, prefix) {
@@ -867,7 +824,7 @@
             allNotifs = document.getElementById('toggle-all-notifs').checked; localStorage.setItem('allNotifs', allNotifs);
             usePagination = document.getElementById('toggle-pagination').checked; localStorage.setItem('usePagination', usePagination);
             showLogs = document.getElementById('toggle-logs').checked; localStorage.setItem('showLogs', showLogs);
-            filterList(false); sendSilentCommand({ action: "set_all_notifs", value: allNotifs ? 1 : 0 }, "Настройки сохранены");
+            filterList(false); sendSilentCommand({ action: "set_all_notifs", value: allNotifs ? 1 : 0 }, "Настройки сохранены", 2000);
         }
 
         document.getElementById("detail-note").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveNote(); document.getElementById("detail-note").blur();} });
@@ -875,14 +832,14 @@
         function toggleNotif(event, id) {
             event.stopPropagation();
             let user = usersData.find(u => u.id === id); user.notif = user.notif ? 0 : 1;
-            filterList(false); sendSilentCommand({ action: "toggle_notif", steam_id: id }, user.notif ? "Уведомления включены" : "Уведомления отключены");
+            filterList(false); sendSilentCommand({ action: "toggle_notif", steam_id: id }, user.notif ? "Уведомления включены" : "Уведомления отключены", 2000);
         }
 
         function saveNote() {
             if (!currentUser) return;
             currentUser.note = document.getElementById('detail-note').value;
             setButtonLoading('btn-save-note', true, '💾');
-            sendSilentCommand({ action: "update_note", steam_id: currentUser.id, note: currentUser.note }, "Примечание сохранено ✅");
+            sendSilentCommand({ action: "update_note", steam_id: currentUser.id, note: currentUser.note }, "Примечание сохранено ✅", 2000);
         }
 
         function deleteUser(targetId = null) {
@@ -894,7 +851,7 @@
                     localStorage.setItem('deletedUserIds', JSON.stringify([...deletedUserIds])); 
                     usersData = usersData.filter(u => u.id !== idToDelete);
                     filterList(true); if (!targetId) showList();
-                    sendSilentCommand({ action: "delete", steam_id: idToDelete }, "Пользователь удален ❌");
+                    sendSilentCommand({ action: "delete", steam_id: idToDelete }, "Пользователь удален ❌", 2000);
                 }
             });
         }

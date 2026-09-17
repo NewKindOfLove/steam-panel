@@ -24,6 +24,7 @@ STEAM_API_KEYS = [
 
 ADMIN_ID = 6739835571  
 DB_NAME = "steam_users.db"
+# Убедись, что тут правильная ссылка на твой публичный репозиторий:
 WEB_APP_URL = "https://newkindoflove.github.io/steam-panel-ui/" 
 
 GROUP_ID = -1003937921596
@@ -387,7 +388,6 @@ async def poll_commands():
                                     
                     except Exception as e:
                         logging.error(f"Error processing SINGLE command {data}: {e}")
-                        # Игнорируем ошибку одной команды и идем к следующей, не убивая процесс!
                         continue
 
             await db.commit()

@@ -18,7 +18,7 @@ BOT_TOKEN = "8858053496:AAEDHlFV4HBVa9bXCdEdiYTGYkFFBxPWgcU"
 STEAM_API_KEY = "58078C086C8EB81A26316C824EBBF452"
 ADMIN_ID = 6739835571  
 DB_NAME = "steam_users.db"
-WEB_APP_URL = "https://newkindoflove.github.io/steam-panel/index.html" 
+WEB_APP_URL = "https://newkindoflove.github.io/steam-panel-ui/" # ТУТ ТВОЯ ССЫЛКА НА ГИТХАБ
 
 GROUP_ID = -1003937921596
 TOPIC_SYSTEM = 3 
@@ -117,6 +117,7 @@ async def sync_to_cloud():
     except Exception as e:
         logging.error(f"Sync error: {e}")
 
+# ЖЕЛЕЗОБЕТОННАЯ СЕКВЕНЦИАЛЬНАЯ ЛОГИКА (БЕЗ ФОНОВЫХ ЗАДАЧ)
 async def poll_commands():
     if not TG_TOKEN: return
     try:
@@ -131,25 +132,21 @@ async def poll_commands():
         except: cmds = []
         if not cmds: return
         
-        # Сразу чистим очередь, чтобы не было дублей и зависаний
+        # Сразу чистим лист команд
         empty_content = json.dumps([{"tag": "p", "children": ["[]"]}])
         await telegraph_request("editPage", access_token=TG_TOKEN, path=TG_CMD, title="CMD", content=empty_content)
         
         changed = False
-        async with aiosqlite.connect(DB_NAME) as db:
-            for data in cmds:
-                action = data.get("action")
-                steam_id = data.get("steam_id")
-                
-                # --- ПОСЛЕДОВАТЕЛЬНАЯ СТАБИЛЬНАЯ ОБРАБОТКА ---
-                if action == "force_update" or action == "force_update_single":
-                    async with aiohttp.ClientSession() as session:
-                        if action == "force_update":
-                            async with db.execute("SELECT steam_id FROM users WHERE is_checker = 0") as cursor:
-                                users_to_update = await cursor.fetchall()
-                        else:
-                            users_to_update = [(steam_id,)]
-                            
+        # ВНИМАНИЕ: Заходим в базу один раз с таймаутом, чтобы исключить блокировки!
+        async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
+            async with aiohttp.ClientSession() as session:
+                for data in cmds:
+                    action = data.get("action")
+                    steam_id = data.get("steam_id")
+                    
+                    if action == "force_update":
+                        async with db.execute("SELECT steam_id FROM users WHERE is_checker = 0") as cursor:
+                            users_to_update = await cursor.fetchall()
                         for (sid,) in users_to_update:
                             profile = await get_steam_profile(session, sid)
                             if profile:
@@ -158,13 +155,22 @@ async def poll_commands():
                                 await db.execute("""
                                     UPDATE users SET last_status=?, last_game=?, cs_hours=?, inv_value=?, name=?, avatar=? WHERE steam_id=?
                                 """, (profile.get('personastate', 0), profile.get('gameextrainfo', ''), cs_hours, inv_val, profile.get('personaname', 'User'), profile.get('avatarfull', ''), sid))
-                            await asyncio.sleep(2) 
-                    changed = True
+                            await asyncio.sleep(1) 
+                        changed = True
 
-                elif action == "checker_scan":
-                    input_text = data.get("url", "").strip()
-                    async with aiohttp.ClientSession() as session:
-                        new_steam_id = await resolve_vanity_url(session, input_text)
+                    elif action == "force_update_single":
+                        profile = await get_steam_profile(session, steam_id)
+                        if profile:
+                            cs_hours = await get_cs_hours(session, steam_id)
+                            inv_val = await get_inventory_cs2(session, steam_id)
+                            await db.execute("""
+                                UPDATE users SET last_status=?, last_game=?, cs_hours=?, inv_value=?, name=?, avatar=? WHERE steam_id=?
+                            """, (profile.get('personastate', 0), profile.get('gameextrainfo', ''), cs_hours, inv_val, profile.get('personaname', 'User'), profile.get('avatarfull', ''), steam_id))
+                        changed = True
+
+                    elif action == "checker_scan":
+                        url = data.get("url", "").strip()
+                        new_steam_id = await resolve_vanity_url(session, url)
                         if new_steam_id:
                             profile = await get_steam_profile(session, new_steam_id)
                             if profile:
@@ -179,14 +185,13 @@ async def poll_commands():
                             else:
                                 await send_alert(f"❌ Чекер: Профиль скрыт или не существует", is_system=True)
                         else:
-                            await send_alert(f"❌ Чекер: Неверная ссылка ({input_text})", is_system=True)
+                            await send_alert(f"❌ Чекер: Неверная ссылка ({url})", is_system=True)
 
-                elif action == "add_users_batch":
-                    urls = data.get("urls", [])
-                    added_count = 0
-                    async with aiohttp.ClientSession() as session:
-                        for input_text in urls:
-                            new_steam_id = await resolve_vanity_url(session, input_text)
+                    elif action == "add_users_batch":
+                        urls = data.get("urls", [])
+                        added_count = 0
+                        for url in urls:
+                            new_steam_id = await resolve_vanity_url(session, url)
                             if not new_steam_id: continue
                             
                             async with db.execute("SELECT steam_id FROM users WHERE steam_id = ?", (new_steam_id,)) as cursor:
@@ -204,26 +209,24 @@ async def poll_commands():
                                 """, (new_steam_id, profile.get('personaname', 'User'), profile.get('avatarfull', ''), profile['profileurl'], profile.get('personastate', 0), cs_hours, inv_val, current_date))
                                 added_count += 1
                                 
-                                # Отправляем пачки в облако, чтобы интерфейс видел прогресс
                                 if added_count % 3 == 0:
                                     await db.commit()
                                     await sync_to_cloud()
-                                
-                                await asyncio.sleep(1.5) # Пауза чтобы не злить WOK
-                    changed = True
-                    if added_count > 0:
-                        await send_alert(f"✅ Массовый импорт завершен: добавлено {added_count} пользователей!", parse_mode="HTML")
+                            await asyncio.sleep(1.5) 
+                        if added_count > 0:
+                            await send_alert(f"✅ Массовый импорт завершен: добавлено {added_count} пользователей!", parse_mode="HTML")
+                        changed = True
 
-                elif action == "add_user":
-                    input_text = data.get("url", "").strip()
-                    async with aiohttp.ClientSession() as session:
-                        new_steam_id = await resolve_vanity_url(session, input_text)
+                    elif action == "add_user":
+                        url = data.get("url", "").strip()
+                        new_steam_id = await resolve_vanity_url(session, url)
                         if new_steam_id:
+                            async with db.execute("SELECT steam_id FROM users WHERE steam_id = ?", (new_steam_id,)) as cursor:
+                                if await cursor.fetchone(): continue
                             profile = await get_steam_profile(session, new_steam_id)
                             if profile:
                                 cs_hours = await get_cs_hours(session, new_steam_id)
                                 inv_val = await get_inventory_cs2(session, new_steam_id)
-                                    
                                 current_date = datetime.now().strftime("%d.%m.%Y")
                                 await db.execute("""
                                     INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications)
@@ -231,34 +234,34 @@ async def poll_commands():
                                 """, (new_steam_id, profile.get('personaname', 'User'), profile.get('avatarfull', ''), profile['profileurl'], profile.get('personastate', 0), cs_hours, inv_val, current_date))
                                 changed = True
 
-                elif action == "approve_checker":
-                    if steam_id.startswith("chk_"):
-                        real_id = steam_id[4:]
-                        current_date = datetime.now().strftime("%d.%m.%Y")
-                        await db.execute("DELETE FROM users WHERE steam_id = ?", (real_id,))
-                        await db.execute("UPDATE users SET steam_id = ?, is_checker = 0, added_date = ? WHERE steam_id = ?", (real_id, current_date, steam_id))
-                        changed = True
-
-                elif action == "set_all_notifs":
-                    val = '1' if data.get("value") else '0'
-                    await db.execute("UPDATE settings SET value = ? WHERE key = 'all_notifs'", (val,))
-                    changed = True
-                elif action == "update_note":
-                    await db.execute("UPDATE users SET note = ? WHERE steam_id = ?", (data.get("note", ""), steam_id))
-                    changed = True
-                elif action == "update_tradeban":
-                    await db.execute("UPDATE users SET tb_status = ?, tb_time = ?, log_number = ? WHERE steam_id = ?", (data.get("tb_status"), data.get("tb_time"), data.get("log", ""), steam_id))
-                    changed = True
-                elif action == "delete":
-                    await db.execute("DELETE FROM users WHERE steam_id = ?", (steam_id,))
-                    changed = True
-                elif action == "toggle_notif":
-                    async with db.execute("SELECT notifications FROM users WHERE steam_id = ?", (steam_id,)) as cursor:
-                        row = await cursor.fetchone()
-                        if row:
-                            new_notif = 0 if row[0] else 1
-                            await db.execute("UPDATE users SET notifications = ? WHERE steam_id = ?", (new_notif, steam_id))
+                    # Мгновенные команды
+                    elif action == "approve_checker":
+                        if steam_id.startswith("chk_"):
+                            real_id = steam_id[4:]
+                            current_date = datetime.now().strftime("%d.%m.%Y")
+                            await db.execute("DELETE FROM users WHERE steam_id = ?", (real_id,))
+                            await db.execute("UPDATE users SET steam_id = ?, is_checker = 0, added_date = ? WHERE steam_id = ?", (real_id, current_date, steam_id))
                             changed = True
+                    elif action == "set_all_notifs":
+                        val = '1' if data.get("value") else '0'
+                        await db.execute("UPDATE settings SET value = ? WHERE key = 'all_notifs'", (val,))
+                        changed = True
+                    elif action == "update_note":
+                        await db.execute("UPDATE users SET note = ? WHERE steam_id = ?", (data.get("note", ""), steam_id))
+                        changed = True
+                    elif action == "update_tradeban":
+                        await db.execute("UPDATE users SET tb_status = ?, tb_time = ?, log_number = ? WHERE steam_id = ?", (data.get("tb_status"), data.get("tb_time"), data.get("log", ""), steam_id))
+                        changed = True
+                    elif action == "delete":
+                        await db.execute("DELETE FROM users WHERE steam_id = ?", (steam_id,))
+                        changed = True
+                    elif action == "toggle_notif":
+                        async with db.execute("SELECT notifications FROM users WHERE steam_id = ?", (steam_id,)) as cursor:
+                            row = await cursor.fetchone()
+                            if row:
+                                new_notif = 0 if row[0] else 1
+                                await db.execute("UPDATE users SET notifications = ? WHERE steam_id = ?", (new_notif, steam_id))
+                                changed = True
 
             await db.commit()
         if changed: await sync_to_cloud()

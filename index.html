@@ -247,6 +247,24 @@
             <div>№ Логов<br><span style="color:#888888; font-size:11px;">(Отображает 5-значный номер снятых)</span></div>
             <label class="switch"><input type="checkbox" id="toggle-logs" onchange="saveSettings()"><span class="slider"></span></label>
         </div>
+        
+        <!-- КНОПКА МАССОВОГО ИМПОРТА -->
+        <div class="setting-row" style="cursor: pointer;" onclick="switchView('import-view')">
+            <div>📥 Массовый импорт<br><span style="color:#888888; font-size:11px;">Загрузить список ID / ссылок</span></div>
+            <div style="color: #64b5f6; font-weight: bold; font-size: 18px;">➔</div>
+        </div>
+    </div>
+
+    <!-- 5. МАССОВЫЙ ИМПОРТ -->
+    <div class="container" id="import-view">
+        <div class="nav-bar">
+            <button class="sq-btn btn-secondary" onclick="switchView('settings-view')">◀</button>
+            <h3 style="margin:0; align-self:center;">Массовый импорт</h3>
+            <div style="width:42px;"></div>
+        </div>
+        <p style="font-size: 13px; color: #888888; margin-bottom: 15px; text-align: center;">Вставь ссылки на профили или SteamID (каждый с новой строки). Бот загрузит их по очереди.</p>
+        <textarea id="import-textarea" placeholder="https://steamcommunity.com/id/user1&#10;76561198...&#10;user2" style="min-height: 250px;"></textarea>
+        <button class="sq-btn" style="width:100%; background-color:#242f3d; color:#4CAF50; font-weight:bold;" onclick="submitImport()">📥 Начать загрузку</button>
     </div>
 
     <script>
@@ -260,8 +278,6 @@
         
         let currentPage = 1;
         const USERS_PER_PAGE = 10;
-        
-        // УМНЫЙ СЧЕТЧИК ЗАДЕРЖЕК: Не сбрасываем списки, если бот еще думает!
         let pendingCommandsCount = 0; 
         
         let showBells = localStorage.getItem('showBells') !== 'false';
@@ -360,7 +376,6 @@
         }
 
         async function fetchLiveDB(manual = false) {
-            // БЛОКИРУЕМ ЗАГРУЗКУ БАЗЫ, ЕСЛИ БОТ ЕЩЕ ОБРАБАТЫВАЕТ КОМАНДЫ
             if (!DB_PATH || isEditing || pendingCommandsCount > 0) return; 
             
             try {
@@ -417,12 +432,12 @@
         }
 
         async function sendSilentCommand(cmdObj, timeoutMs = 3000) {
-            pendingCommandsCount++; // СЧЕТЧИК АКТИВНЫХ КОМАНД
+            pendingCommandsCount++; 
             
             if(cmdObj.action === "checker_scan") showToast("Сканирую CS2 (≈5-8 сек)...", "info");
             else if(cmdObj.action === "force_update" || cmdObj.action === "force_update_single") showToast("Обновление... ⏳", "info");
             else if(cmdObj.action === "add_user") showToast("Добавляю... ⏳", "info");
-            else showToast("Обработка...", "info");
+            else if(cmdObj.action !== "add_users_batch") showToast("Обработка...", "info");
             
             try {
                 const r = await fetch(`https://api.telegra.ph/getPage/${CMD_PATH}?return_content=true&_=${Date.now()}`);
@@ -450,7 +465,6 @@
                 
                 await fetch(`https://api.telegra.ph/editPage/${CMD_PATH}`, { method: "POST", body: formData });
                 
-                // ТАЙМАУТ ОБНОВЛЕН ДЛЯ ОЖИДАНИЯ ОТВЕТА БЕЗ МОРГАНИЙ
                 setTimeout(() => {
                     pendingCommandsCount--;
                     if (pendingCommandsCount <= 0) {
@@ -645,15 +659,42 @@
                 return;
             }
 
-            // Мгновенное добавление без сбросов
             usersData.unshift({ id: checkId, name: "Загрузка...", avatar: "", url: input, status: 0, hours: "...", inv: "⏳ Сканирую...", tb_status: "none", notif: 0 });
             filterList(true);
 
             setButtonLoading('btn-add-user', true, '➕');
-            // УВЕЛИЧЕННЫЙ ТАЙМАУТ ОЖИДАНИЯ ПАРСЕРА
-            sendSilentCommand({ action: "add_user", url: input }, 14000); 
+            sendSilentCommand({ action: "add_user", url: input }, 8000);
             document.getElementById('new-user-input').value = "";
             document.getElementById('new-user-input').blur();
+        }
+
+        // МАССОВЫЙ ИМПОРТ
+        function submitImport() {
+            const lines = document.getElementById('import-textarea').value.split('\n');
+            let toAdd = [];
+            for (let line of lines) {
+                let text = line.trim();
+                if (text) toAdd.push(text);
+            }
+            if (toAdd.length === 0) return showToast("Пустой список!", "warning");
+            
+            let finalUrls = [];
+            for (let url of toAdd) {
+                let checkId = url;
+                if (url.includes("steamcommunity.com/profiles/")) checkId = url.split("profiles/")[1].replace('/', '');
+                else if (url.includes("steamcommunity.com/id/")) checkId = url.split("id/")[1].replace('/', '');
+                
+                if (!usersData.some(u => u.id === checkId || (u.url && u.url.includes(checkId)))) {
+                    finalUrls.push(url);
+                }
+            }
+            
+            if (finalUrls.length === 0) return showToast("Все пользователи уже в базе!", "warning");
+            
+            sendSilentCommand({ action: "add_users_batch", urls: finalUrls }, 5000);
+            showToast(`Отправлено на импорт: ${finalUrls.length} шт. ⏳`, "info");
+            document.getElementById('import-textarea').value = "";
+            switchView('list-view');
         }
 
         document.getElementById("new-user-input").addEventListener("input", () => filterList(true));
@@ -673,8 +714,7 @@
             renderChecker();
 
             setButtonLoading('btn-checker-search', true, '🔍');
-            // УВЕЛИЧЕННЫЙ ТАЙМАУТ ДЛЯ ЧЕКЕРА
-            sendSilentCommand({ action: "checker_scan", url: input }, 14000);
+            sendSilentCommand({ action: "checker_scan", url: input }, 8000);
             
             document.getElementById('checker-input').blur();
         }
@@ -816,7 +856,7 @@
         }
 
         function switchView(id) {
-            ['list-view', 'detail-view', 'settings-view', 'checker-view'].forEach(v => {
+            ['list-view', 'detail-view', 'settings-view', 'checker-view', 'import-view'].forEach(v => {
                 const el = document.getElementById(v);
                 if(el) el.classList.remove('active-view');
             });

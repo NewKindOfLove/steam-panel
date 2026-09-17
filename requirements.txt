@@ -1,7 +1,5 @@
 aiogram
 google-generativeai
-asyncio
-logging
 re
 json
 time

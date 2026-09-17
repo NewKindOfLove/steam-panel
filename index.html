@@ -248,7 +248,6 @@
             <label class="switch"><input type="checkbox" id="toggle-logs" onchange="saveSettings()"><span class="slider"></span></label>
         </div>
         
-        <!-- КНОПКА МАССОВОГО ИМПОРТА -->
         <div class="setting-row" style="cursor: pointer;" onclick="switchView('import-view')">
             <div>📥 Массовый импорт<br><span style="color:#888888; font-size:11px;">Загрузить список ID / ссылок</span></div>
             <div style="color: #64b5f6; font-weight: bold; font-size: 18px;">➔</div>
@@ -431,12 +430,12 @@
             sendSilentCommand({ action: "force_update_single", steam_id: currentUser.id }, 4000);
         }
 
-        async function sendSilentCommand(cmdObj, timeoutMs = 3000) {
+        async function sendSilentCommand(cmdObj, timeoutMs = 4000) {
             pendingCommandsCount++; 
             
-            if(cmdObj.action === "checker_scan") showToast("Сканирую CS2 (≈5-8 сек)...", "info");
+            if(cmdObj.action === "checker_scan") showToast("Сканирую (бот в фоне)...", "info");
             else if(cmdObj.action === "force_update" || cmdObj.action === "force_update_single") showToast("Обновление... ⏳", "info");
-            else if(cmdObj.action === "add_user") showToast("Добавляю... ⏳", "info");
+            else if(cmdObj.action === "add_user") showToast("Добавляю (бот в фоне)...", "info");
             else if(cmdObj.action !== "add_users_batch") showToast("Обработка...", "info");
             
             try {
@@ -465,6 +464,7 @@
                 
                 await fetch(`https://api.telegra.ph/editPage/${CMD_PATH}`, { method: "POST", body: formData });
                 
+                // ТАЙМАУТ СНИЖЕН ДО 4 СЕКУНД (ПОТОМУ ЧТО БОТ ТЕПЕРЬ ВСЁ ДЕЛАЕТ В ФОНЕ)
                 setTimeout(() => {
                     pendingCommandsCount--;
                     if (pendingCommandsCount <= 0) {
@@ -497,6 +497,7 @@
             if (formatted.includes('Скрыто')) return `<span style="color:#888888;">${formatted}</span>`;
             if (formatted.includes('Неизвестно')) return `<span style="color:#FFC107;">${formatted}</span>`;
             if (formatted.includes('Сканирую')) return `<span style="color:#FFC107;">${formatted}</span>`;
+            if (formatted.includes('Ожидание')) return `<span style="color:#FFC107;">${formatted}</span>`;
             if (formatted.includes('$')) return `<span style="color: #4CAF50;">${formatted}</span>`;
             
             return formatted;
@@ -663,12 +664,12 @@
             filterList(true);
 
             setButtonLoading('btn-add-user', true, '➕');
-            sendSilentCommand({ action: "add_user", url: input }, 8000);
+            // ОТПРАВЛЯЕМ КОМАНДУ, БОТ РЕАГИРУЕТ ЗА 1 СЕК, ФРОНТ ЖДЕТ 4
+            sendSilentCommand({ action: "add_user", url: input }, 4000); 
             document.getElementById('new-user-input').value = "";
             document.getElementById('new-user-input').blur();
         }
 
-        // МАССОВЫЙ ИМПОРТ
         function submitImport() {
             const lines = document.getElementById('import-textarea').value.split('\n');
             let toAdd = [];
@@ -691,8 +692,8 @@
             
             if (finalUrls.length === 0) return showToast("Все пользователи уже в базе!", "warning");
             
-            sendSilentCommand({ action: "add_users_batch", urls: finalUrls }, 5000);
-            showToast(`Отправлено на импорт: ${finalUrls.length} шт. ⏳`, "info");
+            sendSilentCommand({ action: "add_users_batch", urls: finalUrls }, 4000);
+            showToast(`Массовая загрузка запущена в фоне ⏳`, "info");
             document.getElementById('import-textarea').value = "";
             switchView('list-view');
         }
@@ -714,14 +715,14 @@
             renderChecker();
 
             setButtonLoading('btn-checker-search', true, '🔍');
-            sendSilentCommand({ action: "checker_scan", url: input }, 8000);
+            sendSilentCommand({ action: "checker_scan", url: input }, 4000);
             
             document.getElementById('checker-input').blur();
         }
 
         function approveChecker(id, btnElement) {
             btnElement.innerText = "⏳ Добавляю...";
-            sendSilentCommand({ action: "approve_checker", steam_id: id });
+            sendSilentCommand({ action: "approve_checker", steam_id: id }, 3000);
             usersData = usersData.filter(u => { if(u.id === id) { u.is_checker = 0; } return true; });
             setTimeout(renderChecker, 1000);
             showToast("Переношу в основную базу... ✅", "success");

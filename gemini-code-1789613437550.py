@@ -279,7 +279,6 @@ async def get_cs_hours(session, steam_id):
     except: pass
     return "0 ч."
 
-# --- ИДЕАЛЬНЫЙ РАБОЧИЙ ПАРСЕР ИНВЕНТАРЯ (ВОЗВРАЩЕНО ОРИГИНАЛЬНОЕ WOK API) ---
 async def get_inventory_cs2(session, steam_id):
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
@@ -290,7 +289,6 @@ async def get_inventory_cs2(session, steam_id):
     wok_key = "wok_eu68v0uqpZuBa56w8YWlVN57JcWcC8TO"
     wok_headers = {"Authorization": f"Bearer {wok_key}"}
 
-    # 1. WOK API
     try:
         url = "https://woksteamapi.com/v1/inventory"
         params = {"steam_id": steam_id, "game": "cs2"}
@@ -309,7 +307,6 @@ async def get_inventory_cs2(session, steam_id):
     except:
         pass
 
-    # 2. Прямая API Steam (Количество)
     if items_count is None:
         try:
             steam_url = f"https://steamcommunity.com/inventory/{steam_id}/730/2?count=1"
@@ -321,7 +318,6 @@ async def get_inventory_cs2(session, steam_id):
                     if items_count == 0: return "$0.00 (0 шт.)"
         except: pass
 
-    # 3. CSGOBackpack (Резерв)
     if not price_str and items_count:
         try:
             async with session.get(f"https://csgobackpack.net/api/GetInventoryValue/?id={steam_id}", headers=headers, timeout=5) as r:
@@ -449,12 +445,45 @@ async def main():
     scheduler.add_job(check_timers, "interval", minutes=2)
     scheduler.start()
     
-    await bot.send_message(ADMIN_ID, "✅ Бот успешно запущен и работает стабильно!")
+    # --- УМНЫЙ СТАТУС БОТА ---
+    status_text_online = "<b>СТАТУС БОТА:</b> 🟢 РАБОТАЕТ"
+    try:
+        async with aiosqlite.connect(DB_NAME) as db:
+            async with db.execute("SELECT value FROM settings WHERE key='status_msg_id'") as cursor:
+                row = await cursor.fetchone()
+                
+        if row:
+            status_msg_id = int(row[0])
+            try:
+                await bot.edit_message_text(status_text_online, chat_id=GROUP_ID, message_id=status_msg_id, parse_mode="HTML")
+            except Exception:
+                msg = await bot.send_message(GROUP_ID, status_text_online, message_thread_id=TOPIC_SYSTEM, parse_mode="HTML")
+                async with aiosqlite.connect(DB_NAME) as db:
+                    await db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('status_msg_id', ?)", (str(msg.message_id),))
+                    await db.commit()
+        else:
+            msg = await bot.send_message(GROUP_ID, status_text_online, message_thread_id=TOPIC_SYSTEM, parse_mode="HTML")
+            async with aiosqlite.connect(DB_NAME) as db:
+                await db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('status_msg_id', ?)", (str(msg.message_id),))
+                await db.commit()
+    except Exception as e:
+        logging.error(f"Failed to set online status: {e}")
 
     try:
         await dp.start_polling(bot)
     finally:
-        await send_alert("❌ Бот выключен.", is_system=True)
+        # --- СМЕНА СТАТУСА НА ОТКЛЮЧЕН ---
+        status_text_offline = "<b>СТАТУС БОТА:</b> 🔴 ОТКЛЮЧЕН"
+        try:
+            async with aiosqlite.connect(DB_NAME) as db:
+                async with db.execute("SELECT value FROM settings WHERE key='status_msg_id'") as cursor:
+                    row = await cursor.fetchone()
+            if row:
+                status_msg_id = int(row[0])
+                await bot.edit_message_text(status_text_offline, chat_id=GROUP_ID, message_id=status_msg_id, parse_mode="HTML")
+        except Exception as e:
+            logging.error(f"Failed to set offline status: {e}")
+            
         await bot.session.close()
 
 if __name__ == "__main__":

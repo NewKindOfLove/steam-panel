@@ -256,13 +256,13 @@
         let currentUser = null;
         let usersData = [];
         let currentFilteredData = [];
-        
-        // УМНЫЙ КЭШ В ОПЕРАТИВКЕ (БОЛЬШЕ НЕ СОХРАНЯЕТСЯ НАВЕЧНО)
-        let pendingDeletes = new Set();
+        let deletedUserIds = new Set(JSON.parse(localStorage.getItem('deletedUserIds') || '[]'));
         
         let currentPage = 1;
         const USERS_PER_PAGE = 10;
-        let isCommandPending = false; 
+        
+        // УМНЫЙ СЧЕТЧИК ЗАДЕРЖЕК: Не сбрасываем списки, если бот еще думает!
+        let pendingCommandsCount = 0; 
         
         let showBells = localStorage.getItem('showBells') !== 'false';
         document.getElementById('toggle-bells').checked = showBells;
@@ -360,7 +360,8 @@
         }
 
         async function fetchLiveDB(manual = false) {
-            if (!DB_PATH || isEditing || isCommandPending) return; 
+            // БЛОКИРУЕМ ЗАГРУЗКУ БАЗЫ, ЕСЛИ БОТ ЕЩЕ ОБРАБАТЫВАЕТ КОМАНДЫ
+            if (!DB_PATH || isEditing || pendingCommandsCount > 0) return; 
             
             try {
                 const r = await fetch(`https://api.telegra.ph/getPage/${DB_PATH}?return_content=true&_=${Date.now()}`);
@@ -376,7 +377,7 @@
                 }
                 
                 let rawData = JSON.parse(jsonStr || "[]");
-                usersData = rawData.filter(u => !pendingDeletes.has(u.id)); // Фильтруем свежеудаленных
+                usersData = rawData.filter(u => !deletedUserIds.has(u.id));
                 
                 const baseCount = usersData.filter(u => u.is_checker !== 1).length;
                 document.getElementById('new-user-input').placeholder = `ID, LINK OR USERLINK (${baseCount})`;
@@ -416,10 +417,11 @@
         }
 
         async function sendSilentCommand(cmdObj, timeoutMs = 3000) {
-            isCommandPending = true; 
+            pendingCommandsCount++; // СЧЕТЧИК АКТИВНЫХ КОМАНД
             
             if(cmdObj.action === "checker_scan") showToast("Сканирую CS2 (≈5-8 сек)...", "info");
             else if(cmdObj.action === "force_update" || cmdObj.action === "force_update_single") showToast("Обновление... ⏳", "info");
+            else if(cmdObj.action === "add_user") showToast("Добавляю... ⏳", "info");
             else showToast("Обработка...", "info");
             
             try {
@@ -448,9 +450,13 @@
                 
                 await fetch(`https://api.telegra.ph/editPage/${CMD_PATH}`, { method: "POST", body: formData });
                 
+                // ТАЙМАУТ ОБНОВЛЕН ДЛЯ ОЖИДАНИЯ ОТВЕТА БЕЗ МОРГАНИЙ
                 setTimeout(() => {
-                    isCommandPending = false; 
-                    fetchLiveDB(false);
+                    pendingCommandsCount--;
+                    if (pendingCommandsCount <= 0) {
+                        pendingCommandsCount = 0;
+                        fetchLiveDB(false);
+                    }
                     resetAllButtons();
                     
                     if(cmdObj.action === "force_update" || cmdObj.action === "force_update_single") {
@@ -460,7 +466,8 @@
             } catch(e) { 
                 updateBotStatus(false);
                 showToast("Ошибка сети ❌", "error"); 
-                isCommandPending = false;
+                pendingCommandsCount--;
+                if (pendingCommandsCount < 0) pendingCommandsCount = 0;
                 resetAllButtons();
             }
         }
@@ -638,12 +645,13 @@
                 return;
             }
 
+            // Мгновенное добавление без сбросов
             usersData.unshift({ id: checkId, name: "Загрузка...", avatar: "", url: input, status: 0, hours: "...", inv: "⏳ Сканирую...", tb_status: "none", notif: 0 });
             filterList(true);
 
             setButtonLoading('btn-add-user', true, '➕');
-            showToast("Добавляю... ⏳", "info");
-            sendSilentCommand({ action: "add_user", url: input }, 6000);
+            // УВЕЛИЧЕННЫЙ ТАЙМАУТ ОЖИДАНИЯ ПАРСЕРА
+            sendSilentCommand({ action: "add_user", url: input }, 14000); 
             document.getElementById('new-user-input').value = "";
             document.getElementById('new-user-input').blur();
         }
@@ -665,8 +673,8 @@
             renderChecker();
 
             setButtonLoading('btn-checker-search', true, '🔍');
-            showToast("Сканирую CS2 (≈5-8 сек)...", "info");
-            sendSilentCommand({ action: "checker_scan", url: input }, 8000);
+            // УВЕЛИЧЕННЫЙ ТАЙМАУТ ДЛЯ ЧЕКЕРА
+            sendSilentCommand({ action: "checker_scan", url: input }, 14000);
             
             document.getElementById('checker-input').blur();
         }
@@ -894,7 +902,8 @@
             if (!idToDelete) return;
             tg.showConfirm("Удалить пользователя из базы?", passed => {
                 if (passed) {
-                    pendingDeletes.add(idToDelete); 
+                    deletedUserIds.add(idToDelete); 
+                    localStorage.setItem('deletedUserIds', JSON.stringify([...deletedUserIds])); 
                     usersData = usersData.filter(u => u.id !== idToDelete);
                     filterList(true); if (!targetId) showList();
                     sendSilentCommand({ action: "delete", steam_id: idToDelete }, 3000);

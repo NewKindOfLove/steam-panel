@@ -104,7 +104,6 @@
                     <option value="unbanned">Разбанился</option>
                 </select>
             </div>
-            <button class="sq-btn btn-secondary" style="font-size:16px; flex-shrink:0;" onclick="switchView('checker-view')">🔍</button>
             <button class="sq-btn btn-secondary" style="font-size:16px; flex-shrink:0;" onclick="switchView('settings-view')">⚙️</button>
         </div>
         
@@ -114,23 +113,7 @@
         <div id="pagination-controls"></div>
     </div>
 
-    <!-- 2. ОКНО ЧЕКЕРА ИНВЕНТАРЕЙ -->
-    <div class="container" id="checker-view">
-        <div class="nav-bar">
-            <button class="sq-btn btn-secondary" onclick="showList()">◀</button>
-            <h3 style="margin:0; align-self:center;">Чекер инвентарей</h3>
-            <div style="width:42px;"></div>
-        </div>
-        <div class="top-bar" style="margin-bottom: 20px;">
-            <input type="text" id="checker-input" placeholder="Steam ссылка или ID">
-            <button id="btn-checker-search" class="sq-btn btn-secondary" onclick="runChecker()">🔍</button>
-        </div>
-        <div id="checker-results" class="user-list">
-            <div style="text-align:center; color:#7f91a4; font-size: 14px; margin-top:20px;">Введи ссылку, чтобы проверить аккаунт.</div>
-        </div>
-    </div>
-
-    <!-- 3. КАРТОЧКА ЮЗЕРА -->
+    <!-- 2. КАРТОЧКА ЮЗЕРА -->
     <div class="container" id="detail-view">
         <div class="nav-bar">
             <button class="sq-btn btn-secondary" onclick="showList()">◀</button>
@@ -211,7 +194,7 @@
         </div>
     </div>
 
-    <!-- 4. НАСТРОЙКИ -->
+    <!-- 3. НАСТРОЙКИ -->
     <div class="container" id="settings-view">
         <div class="nav-bar">
             <button class="sq-btn btn-secondary" onclick="showList()">◀</button>
@@ -243,7 +226,7 @@
         let currentUser = null;
         let usersData = [];
         let currentFilteredData = [];
-        let deletedUserIds = new Set(); // КЭШ УДАЛЕННЫХ ЗОМБИ-ЮЗЕРОВ
+        let deletedUserIds = new Set(); // КЭШ ЗОМБИ-ЮЗЕРОВ (ЧТОБЫ НЕ ВОЗВРАЩАЛИСЬ)
         
         let currentPage = 1;
         const USERS_PER_PAGE = 10;
@@ -309,7 +292,6 @@
             setButtonLoading('btn-save-approx', false, '💾');
             setButtonLoading('btn-save-snat', false, '💾');
             setButtonLoading('btn-save-note', false, '💾');
-            setButtonLoading('btn-checker-search', false, '🔍');
         }
 
         async function fetchLiveDB(manual = false) {
@@ -323,17 +305,14 @@
                     for (let c of nodes[0].children) if (typeof c === 'string') jsonStr += c;
                 }
                 
-                // ФИЛЬТРУЕМ УДАЛЕННЫХ ЗОМБИ ПРЯМО ПРИ СКАЧИВАНИИ
-                let parsedData = JSON.parse(jsonStr || "[]");
-                usersData = parsedData.filter(u => !deletedUserIds.has(u.id));
+                let rawData = JSON.parse(jsonStr || "[]");
+                usersData = rawData.filter(u => !deletedUserIds.has(u.id));
                 
-                const baseCount = usersData.filter(u => u.is_checker != 1).length;
+                const baseCount = usersData.filter(u => u.is_checker !== 1).length;
                 document.getElementById('new-user-input').placeholder = `ID, LINK OR USERLINK (${baseCount})`;
 
                 if(document.getElementById('list-view').classList.contains('active-view')) {
                     filterList(false);
-                } else if (document.getElementById('checker-view').classList.contains('active-view')) {
-                    renderChecker();
                 } else if (currentUser) {
                     const upUser = usersData.find(u => u.id === currentUser.id);
                     if (upUser) {
@@ -486,7 +465,7 @@
 
         function filterList(resetPage = false) {
             const query = document.getElementById('new-user-input').value.trim().toLowerCase();
-            let baseUsers = [...usersData].filter(u => u.is_checker != 1);
+            let baseUsers = [...usersData].filter(u => u.is_checker !== 1);
             
             let filtered = baseUsers;
             if (query) {
@@ -530,7 +509,7 @@
         }
 
         function applyPaginationAndRender() {
-            const hiddenCount = usersData.filter(u => u.is_checker != 1).length - currentFilteredData.length;
+            const hiddenCount = usersData.filter(u => u.is_checker !== 1).length - currentFilteredData.length;
             const hiddenEl = document.getElementById('hidden-count');
             
             if (hiddenCount > 0) {
@@ -566,7 +545,9 @@
                 return;
             }
 
-            usersData.unshift({ id: checkId, name: "Загрузка...", avatar: "", url: input, status: 0, hours: "...", inv: "⏳ Сканирую...", tb_status: "none", notif: 0 });
+            // МГНОВЕННОЕ ОТОБРАЖЕНИЕ В СПИСКЕ
+            const newUser = { id: checkId, name: "Загрузка...", avatar: "", url: input, status: 0, hours: "...", inv: "⏳ Сканирую...", tb_status: "none", notif: 0 };
+            usersData.unshift(newUser);
             filterList(true);
 
             setButtonLoading('btn-add-user', true, '➕');
@@ -578,57 +559,6 @@
 
         document.getElementById("new-user-input").addEventListener("input", () => filterList(true));
         document.getElementById("new-user-input").addEventListener("keydown", e => { if (e.key === "Enter") addUserFromInput(); });
-
-        // ЛОГИКА ЧЕКЕРА - БЕЗ ОЧИСТКИ ПОЛЯ И С ОШИБКАМИ
-        function runChecker() {
-            const input = document.getElementById('checker-input').value.trim();
-            if (!input) return;
-            const isSteam = input.includes("steamcommunity.com") || /^\d{17}$/.test(input);
-            if (!isSteam) { showToast("❌ Введи Steam ссылку или ID64!", "error"); return; }
-            
-            setButtonLoading('btn-checker-search', true, '🔍');
-            showToast("Сканирую CS2 (≈3 сек)...", "info");
-            sendSilentCommand({ action: "checker_scan", url: input }, 6000);
-            
-            // УБРАЛ ОЧИСТКУ ПОЛЯ, ИД ОСТАЕТСЯ!
-            document.getElementById('checker-input').blur();
-        }
-
-        function approveChecker(id, btnElement) {
-            btnElement.innerText = "⏳ Добавляю...";
-            sendSilentCommand({ action: "approve_checker", steam_id: id });
-            usersData = usersData.filter(u => { if(u.id === id) { u.is_checker = 0; } return true; });
-            setTimeout(renderChecker, 1000);
-            showToast("Переношу в основную базу... ✅", "success");
-        }
-
-        function renderChecker() {
-            const container = document.getElementById('checker-results'); container.innerHTML = '';
-            const checkerUsers = usersData.filter(u => u.is_checker == 1).reverse();
-            
-            if (checkerUsers.length === 0) {
-                container.innerHTML = '<div style="text-align:center; color:#7f91a4; font-size: 14px; margin-top:20px;">Введи ссылку вверху, чтобы проверить аккаунт.</div>';
-                return;
-            }
-            
-            checkerUsers.forEach(user => {
-                const item = document.createElement('div'); item.className = 'card-stats'; item.style.marginBottom = '10px';
-                item.innerHTML = `
-                    <div style="display:flex; align-items:center; margin-bottom:10px; border-bottom: 1px solid #303f50; padding-bottom: 10px;">
-                        <img src="${user.avatar}" class="avatar-small" style="margin-right:12px;">
-                        <div style="flex-grow:1; overflow:hidden;">
-                            <div style="font-weight:bold; font-size:16px; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">${user.name}</div>
-                            <div style="font-size:12px; color:#7f91a4;">ID: ${user.id}</div>
-                        </div>
-                        <button class="sq-btn" style="background-color:#242f3d; width:32px; height:32px; font-size:14px; flex-shrink:0;" onclick="deleteUser('${user.id}')">❌</button>
-                    </div>
-                    <div class="stat-row"><span>Часов в CS:</span> <span class="stat-value">${user.hours}</span></div>
-                    <div class="stat-row"><span>Инвентарь CS2:</span> <span class="stat-value">${colorizeInv(user.inv)}</span></div>
-                    <button class="sq-btn" style="width:100%; margin-top:10px; background-color:#242f3d; color:#4CAF50; font-weight:bold;" onclick="approveChecker('${user.id}', this)">✅ Добавить в базу</button>
-                `;
-                container.appendChild(item);
-            });
-        }
 
         function handleTradebanChange() {
             const val = document.getElementById('tradeban-select').value;
@@ -695,12 +625,29 @@
         document.getElementById("snat-time").addEventListener("keydown", e => { if (e.key === "Enter") { saveSnat(); document.getElementById("snat-time").blur();} });
         document.getElementById("snat-log").addEventListener("keydown", e => { if (e.key === "Enter") { saveSnat(); document.getElementById("snat-log").blur();} });
 
+        // МГНОВЕННОЕ СОХРАНЕНИЕ ПАРАМЕТРОВ БЕЗ ПЕРЕЗАПИСИ КЭШЕМ
         function saveTradebanState(status, timeStamp, logNum = "") {
             if (!currentUser) return;
-            currentUser.tb_status = status; currentUser.tb_time = timeStamp; currentUser.log = logNum;
+            
+            // 1. Моментально обновляем интерфейс и локальную базу
+            currentUser.tb_status = status; 
+            currentUser.tb_time = timeStamp; 
+            currentUser.log = logNum;
+            
+            const userIdx = usersData.findIndex(u => u.id === currentUser.id);
+            if (userIdx > -1) {
+                usersData[userIdx].tb_status = status;
+                usersData[userIdx].tb_time = timeStamp;
+                usersData[userIdx].log = logNum;
+            }
+            
+            // 2. Прячем меню выбора
+            document.getElementById('ban-ui').style.display = 'none'; 
+            document.getElementById('snat-ui').style.display = 'none';
+            
+            // 3. Отправляем в телеграф на фоне
             sendSilentCommand({ action: "update_tradeban", steam_id: currentUser.id, tb_status: status, tb_time: timeStamp, log: logNum }, 3000);
             showToast("Параметр сохранен ✅", "success");
-            document.getElementById('ban-ui').style.display = 'none'; document.getElementById('snat-ui').style.display = 'none';
         }
 
         function fillInputsFromUnix(unix, prefix) {
@@ -710,7 +657,7 @@
         }
 
         function switchView(id) {
-            ['list-view', 'detail-view', 'settings-view', 'checker-view'].forEach(v => {
+            ['list-view', 'detail-view', 'settings-view'].forEach(v => {
                 const el = document.getElementById(v);
                 if(el) el.classList.remove('active-view');
             });
@@ -718,7 +665,6 @@
             if(target) target.classList.add('active-view');
             
             if (id === 'list-view') filterList(false);
-            if (id === 'checker-view') renderChecker();
         }
         function showList() { switchView('list-view'); currentUser = null; document.getElementById('new-user-input').value = ""; }
         function openSettings() { switchView('settings-view'); }
@@ -796,7 +742,7 @@
             if (!idToDelete) return;
             tg.showConfirm("Удалить пользователя из базы?", passed => {
                 if (passed) {
-                    deletedUserIds.add(idToDelete); // ДОБАВЛЯЕМ В КЭШ УДАЛЕННЫХ
+                    deletedUserIds.add(idToDelete); // БЛОКИРУЕМ ЗОМБИ-ЮЗЕРОВ
                     usersData = usersData.filter(u => u.id !== idToDelete);
                     filterList(true); if (!targetId) showList();
                     sendSilentCommand({ action: "delete", steam_id: idToDelete }, 3000);

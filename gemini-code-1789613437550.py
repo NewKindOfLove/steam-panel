@@ -24,7 +24,6 @@ STEAM_API_KEYS = [
 
 ADMIN_ID = 6739835571  
 DB_NAME = "steam_users.db"
-# Убедись, что тут правильная ссылка на твой публичный репозиторий:
 WEB_APP_URL = "https://newkindoflove.github.io/steam-panel-ui/" 
 
 GROUP_ID = -1003937921596
@@ -124,7 +123,9 @@ async def sync_to_cloud():
     except Exception as e:
         logging.error(f"Sync error: {e}")
 
-# --- БЕЗОПАСНЫЕ ФУНКЦИИ API (С ЗАЩИТОЙ ОТ КРАШЕЙ) ---
+def get_key():
+    return random.choice(STEAM_API_KEYS)
+
 async def resolve_vanity_url(session, url_or_id):
     try:
         url_or_id = url_or_id.strip().strip('/')
@@ -136,55 +137,50 @@ async def resolve_vanity_url(session, url_or_id):
         elif "steamcommunity.com/id/" in url_or_id:
             vanity_name = url_or_id.split("id/")[1].split('/')[0]
             
-        key = random.choice(STEAM_API_KEYS)
-        url = f"http://api.steampowered.com/ISteamUser/ResolveVanityURL/v0001/?key={key}&vanityurl={vanity_name}"
-        async with session.get(url, timeout=10) as response:
+        url = f"http://api.steampowered.com/ISteamUser/ResolveVanityURL/v0001/?key={get_key()}&vanityurl={vanity_name}"
+        async with session.get(url, timeout=5) as response:
             if response.status == 200:
                 data = await response.json()
                 if data.get('response', {}).get('success') == 1: 
                     return data['response']['steamid']
-    except Exception as e:
-        logging.error(f"Resolve URL Error: {e}")
+    except Exception: pass
     return None
 
 async def get_steam_profile(session, steam_id):
     try:
-        key = random.choice(STEAM_API_KEYS)
-        url = f"http://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key={key}&steamids={steam_id}"
-        async with session.get(url, timeout=10) as response:
+        url = f"http://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key={get_key()}&steamids={steam_id}"
+        async with session.get(url, timeout=5) as response:
             if response.status == 200:
                 data = await response.json()
                 players = data.get('response', {}).get('players', [])
                 if players: return players[0]
-    except Exception as e:
-        logging.error(f"Steam API Profile error: {e}")
+    except Exception: pass
     return None
 
 async def get_cs_hours(session, steam_id):
     try:
-        key = random.choice(STEAM_API_KEYS)
-        url = f"http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key={key}&steamid={steam_id}"
-        async with session.get(url, timeout=10) as response:
+        url = f"http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key={get_key()}&steamid={steam_id}"
+        async with session.get(url, timeout=5) as response:
             if response.status == 200:
                 data = await response.json()
                 for game in data.get('response', {}).get('games', []):
                     if game.get('appid') == 730: 
                         return f"{round(game.get('playtime_forever', 0) / 60, 1)} ч."
-    except Exception as e:
-        logging.error(f"Steam API Hours error: {e}")
+    except Exception: pass
     return "0 ч."
 
 async def get_inventory_cs2(session, steam_id):
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    headers = {"User-Agent": "Mozilla/5.0"}
     items_count = None
     price_str = None
     wok_key = "wok_eu68v0uqpZuBa56w8YWlVN57JcWcC8TO"
     wok_headers = {"Authorization": f"Bearer {wok_key}"}
 
+    # Ускоренные таймауты!
     try:
         url = "https://woksteamapi.com/v1/inventory"
         params = {"steam_id": steam_id, "game": "cs2"}
-        async with session.get(url, headers=wok_headers, params=params, timeout=10) as r:
+        async with session.get(url, headers=wok_headers, params=params, timeout=5) as r:
             if r.status == 200:
                 data = await r.json()
                 status = data.get("status")
@@ -195,24 +191,22 @@ async def get_inventory_cs2(session, steam_id):
                 val = data.get("total")
                 if val is not None and items_count is not None:
                     return f"${float(val):.2f} ({items_count} шт.)"
-    except Exception:
-        pass
+    except Exception: pass
 
     if items_count is None:
         try:
             steam_url = f"https://steamcommunity.com/inventory/{steam_id}/730/2?count=1"
-            async with session.get(steam_url, headers=headers, timeout=8) as r:
+            async with session.get(steam_url, headers=headers, timeout=4) as r:
                 if r.status in [401, 403]: return "Скрыто 🔒"
                 if r.status == 200:
                     data = await r.json()
                     items_count = data.get("total_inventory_count", 0)
                     if items_count == 0: return "$0.00 (0 шт.)"
-        except Exception: 
-            pass
+        except Exception: pass
 
     if not price_str and items_count:
         try:
-            async with session.get(f"https://csgobackpack.net/api/GetInventoryValue/?id={steam_id}", headers=headers, timeout=8) as r:
+            async with session.get(f"https://csgobackpack.net/api/GetInventoryValue/?id={steam_id}", headers=headers, timeout=4) as r:
                 if r.status == 200:
                     data = await r.json()
                     if data.get('success'): 
@@ -222,8 +216,7 @@ async def get_inventory_cs2(session, steam_id):
                             price_str = f"${float(clean_val):.2f}"
                         except Exception:
                             price_str = f"${val}"
-        except Exception: 
-            pass
+        except Exception: pass
 
     if price_str and items_count is not None:
         return f"{price_str} ({items_count} шт.)"
@@ -232,7 +225,7 @@ async def get_inventory_cs2(session, steam_id):
     
     return "Неизвестно ⚠️"
 
-# --- ОСНОВНОЙ ЦИКЛ ОБРАБОТКИ (НЕУБИВАЕМЫЙ) ---
+# --- ОСНОВНОЙ ЦИКЛ ОБРАБОТКИ ---
 async def poll_commands():
     if not TG_TOKEN: return
     try:
@@ -258,18 +251,30 @@ async def poll_commands():
                         action = data.get("action")
                         steam_id = data.get("steam_id")
                         
+                        # АСИНХРОННОЕ ГЛОБАЛЬНОЕ ОБНОВЛЕНИЕ ПАЧКАМИ
                         if action == "force_update":
                             async with db.execute("SELECT steam_id FROM users WHERE is_checker = 0") as cursor:
-                                users_to_update = await cursor.fetchall()
-                            for (sid,) in users_to_update:
+                                users_to_update = [row[0] for row in await cursor.fetchall()]
+                            
+                            async def fetch_update(sid):
                                 profile = await get_steam_profile(session, sid)
                                 if profile:
-                                    cs_hours = await get_cs_hours(session, sid)
-                                    inv_val = await get_inventory_cs2(session, sid)
-                                    await db.execute("""
-                                        UPDATE users SET last_status=?, last_game=?, cs_hours=?, inv_value=?, name=?, avatar=? WHERE steam_id=?
-                                    """, (profile.get('personastate', 0), profile.get('gameextrainfo', ''), cs_hours, inv_val, profile.get('personaname', 'User'), profile.get('avatarfull', ''), sid))
-                                await asyncio.sleep(0.5) 
+                                    hrs = await get_cs_hours(session, sid)
+                                    inv = await get_inventory_cs2(session, sid)
+                                    return (profile.get('personastate', 0), profile.get('gameextrainfo', ''), hrs, inv, profile.get('personaname', 'User'), profile.get('avatarfull', ''), sid)
+                                return None
+
+                            for i in range(0, len(users_to_update), 5):
+                                chunk = users_to_update[i:i+5]
+                                tasks = [fetch_update(sid) for sid in chunk]
+                                results = await asyncio.gather(*tasks)
+                                
+                                for res in results:
+                                    if res:
+                                        await db.execute("UPDATE users SET last_status=?, last_game=?, cs_hours=?, inv_value=?, name=?, avatar=? WHERE steam_id=?", res)
+                                await db.commit()
+                                await sync_to_cloud()
+                                await asyncio.sleep(1)
                             changed = True
 
                         elif action == "force_update_single":
@@ -298,41 +303,53 @@ async def poll_commands():
                                     VALUES (?, ?, ?, ?, ?, ?, ?, 1, '')
                                 """, (chk_id, name, avatar, f"https://steamcommunity.com/profiles/{new_steam_id}", status, cs_hours, inv_cs))
                                 changed = True
-                            else:
-                                await send_alert(f"❌ Чекер: Неверная ссылка ({url})", is_system=True)
 
+                        # АСИНХРОННЫЙ МАССОВЫЙ ИМПОРТ (ПУЛЕМЕТ)
                         elif action == "add_users_batch":
                             urls = data.get("urls", [])
                             added_count = 0
-                            for url in urls:
+                            current_date = datetime.now().strftime("%d.%m.%Y")
+
+                            async def process_import_single(url):
                                 try:
-                                    new_steam_id = await resolve_vanity_url(session, url)
-                                    if not new_steam_id: continue
-                                    
-                                    async with db.execute("SELECT steam_id FROM users WHERE steam_id = ?", (new_steam_id,)) as cursor:
-                                        if await cursor.fetchone(): continue
-                                    
-                                    profile = await get_steam_profile(session, new_steam_id)
+                                    sid = await resolve_vanity_url(session, url)
+                                    if not sid: return None
+                                    profile = await get_steam_profile(session, sid)
                                     name = profile.get('personaname', 'ОШИБКА Steam') if profile else 'ОШИБКА Steam'
                                     avatar = profile.get('avatarfull', '') if profile else ''
                                     status = profile.get('personastate', 0) if profile else 0
+                                    hrs = await get_cs_hours(session, sid)
+                                    inv = await get_inventory_cs2(session, sid)
+                                    return (sid, name, avatar, status, hrs, inv)
+                                except Exception:
+                                    return None
+
+                            # Обрабатываем пачками по 5 ссылок одновременно
+                            for i in range(0, len(urls), 5):
+                                chunk = urls[i:i+5]
+                                tasks = [process_import_single(u) for u in chunk]
+                                results = await asyncio.gather(*tasks)
+                                
+                                chunk_added = 0
+                                for res in results:
+                                    if not res: continue
+                                    sid, name, avatar, status, hrs, inv = res
                                     
-                                    cs_hours = await get_cs_hours(session, new_steam_id)
-                                    inv_val = await get_inventory_cs2(session, new_steam_id)
-                                    current_date = datetime.now().strftime("%d.%m.%Y")
-                                    
+                                    async with db.execute("SELECT steam_id FROM users WHERE steam_id = ?", (sid,)) as cursor:
+                                        if await cursor.fetchone(): continue
+                                        
                                     await db.execute("""
                                         INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications)
                                         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0)
-                                    """, (new_steam_id, name, avatar, f"https://steamcommunity.com/profiles/{new_steam_id}", status, cs_hours, inv_val, current_date))
-                                    added_count += 1
+                                    """, (sid, name, avatar, f"https://steamcommunity.com/profiles/{sid}", status, hrs, inv, current_date))
+                                    chunk_added += 1
                                     
-                                    if added_count % 3 == 0:
-                                        await db.commit()
-                                        await sync_to_cloud()
-                                except Exception as e:
-                                    logging.error(f"Batch import user error: {e}")
-                                await asyncio.sleep(0.5) 
+                                added_count += chunk_added
+                                if chunk_added > 0:
+                                    await db.commit()
+                                    await sync_to_cloud() # Обновляем панель в Телеге сразу!
+                                await asyncio.sleep(1) # Короткая передышка для ключей
+
                             if added_count > 0:
                                 await send_alert(f"✅ Массовый импорт завершен: добавлено {added_count} пользователей!", parse_mode="HTML")
                             changed = True
@@ -342,22 +359,22 @@ async def poll_commands():
                             new_steam_id = await resolve_vanity_url(session, url)
                             if new_steam_id:
                                 async with db.execute("SELECT steam_id FROM users WHERE steam_id = ?", (new_steam_id,)) as cursor:
-                                    if await cursor.fetchone(): continue
-                                    
-                                profile = await get_steam_profile(session, new_steam_id)
-                                name = profile.get('personaname', 'ОШИБКА Steam') if profile else 'ОШИБКА Steam'
-                                avatar = profile.get('avatarfull', '') if profile else ''
-                                status = profile.get('personastate', 0) if profile else 0
-                                
-                                cs_hours = await get_cs_hours(session, new_steam_id)
-                                inv_val = await get_inventory_cs2(session, new_steam_id)
-                                current_date = datetime.now().strftime("%d.%m.%Y")
-                                await db.execute("""
-                                    INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0)
-                                """, (new_steam_id, name, avatar, f"https://steamcommunity.com/profiles/{new_steam_id}", status, cs_hours, inv_val, current_date))
-                                changed = True
+                                    if not await cursor.fetchone():
+                                        profile = await get_steam_profile(session, new_steam_id)
+                                        name = profile.get('personaname', 'ОШИБКА Steam') if profile else 'ОШИБКА Steam'
+                                        avatar = profile.get('avatarfull', '') if profile else ''
+                                        status = profile.get('personastate', 0) if profile else 0
+                                        cs_hours = await get_cs_hours(session, new_steam_id)
+                                        inv_val = await get_inventory_cs2(session, new_steam_id)
+                                        current_date = datetime.now().strftime("%d.%m.%Y")
+                                        
+                                        await db.execute("""
+                                            INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications)
+                                            VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0)
+                                        """, (new_steam_id, name, avatar, f"https://steamcommunity.com/profiles/{new_steam_id}", status, cs_hours, inv_val, current_date))
+                                        changed = True
 
+                        # Быстрые команды
                         elif action == "approve_checker":
                             if steam_id.startswith("chk_"):
                                 real_id = steam_id[4:]
@@ -387,7 +404,7 @@ async def poll_commands():
                                     changed = True
                                     
                     except Exception as e:
-                        logging.error(f"Error processing SINGLE command {data}: {e}")
+                        logging.error(f"Error processing command {data}: {e}")
                         continue
 
             await db.commit()
@@ -439,7 +456,6 @@ async def check_statuses():
             all_notifs = row[0] == '1' if row else True
 
     if not users: return
-
     changed = False
     async with aiohttp.ClientSession() as session:
         for user in users:
@@ -487,10 +503,8 @@ async def check_statuses():
                         elif current_status in [2, 3, 4]: msg = f"🟡 {user_link} отошел/не беспокоить"
                         else: continue
                         await send_alert(msg, parse_mode="HTML", disable_notification=True, link_preview_options=LinkPreviewOptions(is_disabled=True))
-            except Exception as e:
-                logging.error(f"Status check error for {steam_id}: {e}")
+            except Exception:
                 continue
-                    
     if changed: await sync_to_cloud()
 
 async def main():
@@ -536,9 +550,7 @@ async def main():
             if row:
                 status_msg_id = int(row[0])
                 await bot.edit_message_text(status_text_offline, chat_id=GROUP_ID, message_id=status_msg_id, parse_mode="HTML")
-        except Exception as e:
-            logging.error(f"Failed to set offline status: {e}")
-            
+        except Exception: pass
         await bot.session.close()
 
 if __name__ == "__main__":

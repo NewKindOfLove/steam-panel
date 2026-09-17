@@ -45,7 +45,6 @@
         .clickable-log { color: #888888; font-size: 10px; font-weight: normal; margin-left: 4px; cursor: pointer; padding: 2px 4px; border-radius: 4px; transition: 0.2s; }
         .clickable-log:active { background-color: #333333; color: #ffffff; }
 
-        /* ИДЕАЛЬНЫЙ ID БЕЗ ФОНА И РАМОК (Как номер лога) */
         .id-badge { color: #888888; font-size: 11px; font-weight: normal; margin-left: 6px; cursor: pointer; padding: 2px 4px; border-radius: 4px; transition: 0.2s; }
         .id-badge:active { background-color: #333333; color: #ffffff; }
 
@@ -80,6 +79,7 @@
         #toast.success { border-left-color: #4CAF50; }
         #toast.warning { border-left-color: #FFC107; }
         #toast.error { border-left-color: #F44336; }
+        #toast.info { border-left-color: #5288c1; }
         
         #pagination-controls { display:flex; justify-content:center; gap: 5px; margin-top: 15px; flex-wrap: wrap; }
     </style>
@@ -94,15 +94,15 @@
             <button id="btn-add-user" class="sq-btn btn-secondary" onclick="addUserFromInput()" style="color: #a8b5c2;">➕</button>
             <button id="btn-global-refresh" class="sq-btn btn-secondary" onclick="manualRefresh()">⟳</button>
         </div>
-        <div style="display:flex; justify-content:space-between; margin-bottom: 15px; gap: 8px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px; gap: 8px;">
             <div style="display: flex; gap: 8px; flex-grow: 1;">
-                <select id="sort-select" style="flex: 1; width: 50%;" onchange="filterList(true)">
+                <select id="sort-select" style="flex: 1; min-width: 0;" onchange="filterList(true)">
                     <option value="default">Сначала новые</option>
                     <option value="inv_desc">По цене ($)</option>
                     <option value="tb_asc">По разбану ⏳</option>
                     <option value="param">По параметру 📌</option>
                 </select>
-                <select id="param-select" style="flex: 1; display: none; width: 50%;" onchange="filterList(true)">
+                <select id="param-select" style="flex: 1; display: none; min-width: 0;" onchange="filterList(true)">
                     <option value="ban">Трейдбан</option>
                     <option value="ready">Можно снимать</option>
                     <option value="snat">Снят</option>
@@ -111,6 +111,13 @@
                     <option value="unbanned">Разбанился</option>
                 </select>
             </div>
+            
+            <!-- ИНДИКАТОР БОТА -->
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 4px;">
+                <div id="bot-dot" style="width: 8px; height: 8px; border-radius: 50%; background-color: #F44336; box-shadow: 0 0 6px #F44336; margin-bottom: 3px; transition: 0.3s;"></div>
+                <span style="font-size: 9px; font-weight: bold; color: #7f91a4; line-height: 1;">BOT</span>
+            </div>
+
             <button class="sq-btn btn-secondary" style="font-size:16px; flex-shrink:0;" onclick="switchView('checker-view')">🔍</button>
             <button class="sq-btn btn-secondary" style="font-size:16px; flex-shrink:0;" onclick="switchView('settings-view')">⚙️</button>
         </div>
@@ -289,6 +296,20 @@
         const DB_PATH = urlParams.get('d');
         const CMD_PATH = urlParams.get('c');
 
+        // УПРАВЛЕНИЕ ИНДИКАТОРОМ БОТА
+        function updateBotStatus(isOnline) {
+            const dot = document.getElementById('bot-dot');
+            if(dot) {
+                if(isOnline) {
+                    dot.style.backgroundColor = '#4CAF50';
+                    dot.style.boxShadow = '0 0 6px #4CAF50';
+                } else {
+                    dot.style.backgroundColor = '#F44336';
+                    dot.style.boxShadow = '0 0 6px #F44336';
+                }
+            }
+        }
+
         function showToast(msg, type = "info") {
             const toast = document.getElementById("toast");
             toast.innerText = msg; 
@@ -343,6 +364,10 @@
             
             try {
                 const r = await fetch(`https://api.telegra.ph/getPage/${DB_PATH}?return_content=true&_=${Date.now()}`);
+                
+                if (r.ok) updateBotStatus(true);
+                else updateBotStatus(false);
+                
                 const data = await r.json();
                 let jsonStr = "";
                 const nodes = data.result.content;
@@ -370,7 +395,9 @@
                     } else { showList(); }
                 }
                 if (manual) showToast("Данные обновлены ✅", "success");
-            } catch(e) {}
+            } catch(e) {
+                updateBotStatus(false);
+            }
         }
 
         setInterval(fetchLiveDB, 3000);
@@ -391,8 +418,16 @@
         async function sendSilentCommand(cmdObj, timeoutMs = 3000) {
             isCommandPending = true; 
             
+            // Тонкая настройка тостов обновления
+            if(cmdObj.action === "checker_scan") showToast("Сканирую CS2 (≈5-8 сек)...", "info");
+            else if(cmdObj.action === "force_update" || cmdObj.action === "force_update_single") showToast("Обновление... ⏳", "info");
+            else showToast("Обработка...", "info");
+            
             try {
                 const r = await fetch(`https://api.telegra.ph/getPage/${CMD_PATH}?return_content=true&_=${Date.now()}`);
+                if (r.ok) updateBotStatus(true);
+                else updateBotStatus(false);
+                
                 const data = await r.json();
                 let jsonStr = "";
                 const nodes = data.result.content;
@@ -418,8 +453,13 @@
                     isCommandPending = false; 
                     fetchLiveDB(false);
                     resetAllButtons();
+                    
+                    if(cmdObj.action === "force_update" || cmdObj.action === "force_update_single") {
+                        showToast("Данные обновлены! ✅", "success");
+                    }
                 }, timeoutMs);
             } catch(e) { 
+                updateBotStatus(false);
                 showToast("Ошибка сети ❌", "error"); 
                 isCommandPending = false;
                 resetAllButtons();

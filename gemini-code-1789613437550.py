@@ -3,6 +3,7 @@ import logging
 import re
 import json
 import time
+import random
 from datetime import datetime
 from aiogram import Bot, Dispatcher
 from aiogram.types import (
@@ -15,10 +16,16 @@ import aiosqlite
 
 # --- КОНФИГУРАЦИЯ ---
 BOT_TOKEN = "8858053496:AAEDHlFV4HBVa9bXCdEdiYTGYkFFBxPWgcU"
-STEAM_API_KEY = "58078C086C8EB81A26316C824EBBF452"
+# Твои 3 ключа для распределения нагрузки!
+STEAM_API_KEYS = [
+    "58078C086C8EB81A26316C824EBBF452",
+    "AA7E37631CE33F6D2E802B87B9438C5F",
+    "354B4A89A071C82E0213772519B80AAA"
+]
+
 ADMIN_ID = 6739835571  
 DB_NAME = "steam_users.db"
-WEB_APP_URL = "https://newkindoflove.github.io/steam-panel-ui/" # ТУТ ТВОЯ ССЫЛКА НА ГИТХАБ
+WEB_APP_URL = "https://newkindoflove.github.io/steam-panel-ui/" 
 
 GROUP_ID = -1003937921596
 TOPIC_SYSTEM = 3 
@@ -117,7 +124,6 @@ async def sync_to_cloud():
     except Exception as e:
         logging.error(f"Sync error: {e}")
 
-# ЖЕЛЕЗОБЕТОННАЯ СЕКВЕНЦИАЛЬНАЯ ЛОГИКА (БЕЗ ФОНОВЫХ ЗАДАЧ)
 async def poll_commands():
     if not TG_TOKEN: return
     try:
@@ -132,12 +138,10 @@ async def poll_commands():
         except: cmds = []
         if not cmds: return
         
-        # Сразу чистим лист команд
         empty_content = json.dumps([{"tag": "p", "children": ["[]"]}])
         await telegraph_request("editPage", access_token=TG_TOKEN, path=TG_CMD, title="CMD", content=empty_content)
         
         changed = False
-        # ВНИМАНИЕ: Заходим в базу один раз с таймаутом, чтобы исключить блокировки!
         async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
             async with aiohttp.ClientSession() as session:
                 for data in cmds:
@@ -155,7 +159,7 @@ async def poll_commands():
                                 await db.execute("""
                                     UPDATE users SET last_status=?, last_game=?, cs_hours=?, inv_value=?, name=?, avatar=? WHERE steam_id=?
                                 """, (profile.get('personastate', 0), profile.get('gameextrainfo', ''), cs_hours, inv_val, profile.get('personaname', 'User'), profile.get('avatarfull', ''), sid))
-                            await asyncio.sleep(1) 
+                            await asyncio.sleep(0.5) 
                         changed = True
 
                     elif action == "force_update_single":
@@ -212,7 +216,8 @@ async def poll_commands():
                                 if added_count % 3 == 0:
                                     await db.commit()
                                     await sync_to_cloud()
-                            await asyncio.sleep(1.5) 
+                            # Снизил задержку, так как ключей теперь 3
+                            await asyncio.sleep(0.8) 
                         if added_count > 0:
                             await send_alert(f"✅ Массовый импорт завершен: добавлено {added_count} пользователей!", parse_mode="HTML")
                         changed = True
@@ -234,7 +239,6 @@ async def poll_commands():
                                 """, (new_steam_id, profile.get('personaname', 'User'), profile.get('avatarfull', ''), profile['profileurl'], profile.get('personastate', 0), cs_hours, inv_val, current_date))
                                 changed = True
 
-                    # Мгновенные команды
                     elif action == "approve_checker":
                         if steam_id.startswith("chk_"):
                             real_id = steam_id[4:]
@@ -278,21 +282,27 @@ async def resolve_vanity_url(session, url_or_id):
     elif "steamcommunity.com/id/" in url_or_id:
         vanity_name = url_or_id.split("id/")[1].split('/')[0]
         
-    url = f"http://api.steampowered.com/ISteamUser/ResolveVanityURL/v0001/?key={STEAM_API_KEY}&vanityurl={vanity_name}"
+    # БЕРЕМ СЛУЧАЙНЫЙ КЛЮЧ
+    key = random.choice(STEAM_API_KEYS)
+    url = f"http://api.steampowered.com/ISteamUser/ResolveVanityURL/v0001/?key={key}&vanityurl={vanity_name}"
     async with session.get(url) as response:
         data = await response.json()
         if data['response']['success'] == 1: return data['response']['steamid']
     return None
 
 async def get_steam_profile(session, steam_id):
-    url = f"http://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key={STEAM_API_KEY}&steamids={steam_id}"
+    # БЕРЕМ СЛУЧАЙНЫЙ КЛЮЧ
+    key = random.choice(STEAM_API_KEYS)
+    url = f"http://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key={key}&steamids={steam_id}"
     async with session.get(url) as response:
         data = await response.json()
         if not data['response']['players']: return None
         return data['response']['players'][0]
 
 async def get_cs_hours(session, steam_id):
-    url = f"http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key={STEAM_API_KEY}&steamid={steam_id}"
+    # БЕРЕМ СЛУЧАЙНЫЙ КЛЮЧ
+    key = random.choice(STEAM_API_KEYS)
+    url = f"http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key={key}&steamid={steam_id}"
     try:
         async with session.get(url) as response:
             if response.status != 200: return "0 ч."

@@ -1,1 +1,2 @@
-python gemini-code-1789613437550.py
+aiogram
+google-generativeai

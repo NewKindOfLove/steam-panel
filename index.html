@@ -257,7 +257,9 @@
         let currentUser = null;
         let usersData = [];
         let currentFilteredData = [];
-        let deletedUserIds = new Set();
+        
+        // ВОТ ОНО - БЕССМЕРТНОЕ ХРАНИЛИЩЕ УДАЛЕННЫХ ТИПОВ
+        let deletedUserIds = new Set(JSON.parse(localStorage.getItem('deletedUserIds') || '[]'));
         
         let currentPage = 1;
         const USERS_PER_PAGE = 10;
@@ -296,7 +298,6 @@
         const DB_PATH = urlParams.get('d');
         const CMD_PATH = urlParams.get('c');
 
-        // УПРАВЛЕНИЕ ИНДИКАТОРОМ БОТА
         function updateBotStatus(isOnline) {
             const dot = document.getElementById('bot-dot');
             if(dot) {
@@ -376,7 +377,7 @@
                 }
                 
                 let rawData = JSON.parse(jsonStr || "[]");
-                usersData = rawData.filter(u => !deletedUserIds.has(u.id));
+                usersData = rawData.filter(u => !deletedUserIds.has(u.id)); // ФИЛЬТРУЕМ ЗОМБИ СРАЗУ
                 
                 const baseCount = usersData.filter(u => u.is_checker !== 1).length;
                 document.getElementById('new-user-input').placeholder = `ID, LINK OR USERLINK (${baseCount})`;
@@ -418,7 +419,6 @@
         async function sendSilentCommand(cmdObj, timeoutMs = 3000) {
             isCommandPending = true; 
             
-            // Тонкая настройка тостов обновления
             if(cmdObj.action === "checker_scan") showToast("Сканирую CS2 (≈5-8 сек)...", "info");
             else if(cmdObj.action === "force_update" || cmdObj.action === "force_update_single") showToast("Обновление... ⏳", "info");
             else showToast("Обработка...", "info");
@@ -778,6 +778,7 @@
         document.getElementById("snat-time").addEventListener("keydown", e => { if (e.key === "Enter") { saveSnat(); document.getElementById("snat-time").blur();} });
         document.getElementById("snat-log").addEventListener("keydown", e => { if (e.key === "Enter") { saveSnat(); document.getElementById("snat-log").blur();} });
 
+        // МГНОВЕННОЕ СОХРАНЕНИЕ 
         function saveTradebanState(status, timeStamp, logNum = "") {
             if (!currentUser) return;
             
@@ -896,6 +897,7 @@
             tg.showConfirm("Удалить пользователя из базы?", passed => {
                 if (passed) {
                     deletedUserIds.add(idToDelete); 
+                    localStorage.setItem('deletedUserIds', JSON.stringify([...deletedUserIds])); // СОХРАНЯЕМ В КЭШ
                     usersData = usersData.filter(u => u.id !== idToDelete);
                     filterList(true); if (!targetId) showList();
                     sendSilentCommand({ action: "delete", steam_id: idToDelete }, 3000);

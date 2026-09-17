@@ -40,7 +40,6 @@
         .card-name { font-size: 22px; font-weight: bold; margin-bottom: 5px; }
         .card-id-text { font-size: 13px; color: var(--tg-theme-hint-color); margin-bottom: 3px; }
         
-        /* КЛИКАБЕЛЬНЫЙ ID */
         .clickable-id { color: var(--tg-theme-button-color, #5288c1); cursor: pointer; text-decoration: underline; }
         .clickable-id:active { opacity: 0.7; }
 
@@ -71,8 +70,8 @@
         .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
         input:checked + .slider { background-color: #4CAF50; } input:checked + .slider:before { transform: translateX(16px); }
         
-        /* ЧЕРНЫЙ ТОСТ */
-        #toast { visibility: hidden; min-width: 200px; background-color: #242f3d; color: #ffffff; text-align: center; border-radius: 8px; padding: 12px; position: fixed; z-index: 1000; left: 50%; bottom: 20px; transform: translateX(-50%); font-size: 14px; opacity: 0; transition: opacity 0.3s, bottom 0.3s; border: 1px solid #5288c1; box-shadow: 0 4px 12px rgba(0,0,0,0.5); font-weight: bold;}
+        /* ИДЕАЛЬНЫЕ ТЕМНЫЕ УВЕДОМЛЕНИЯ */
+        #toast { visibility: hidden; min-width: 200px; background-color: #17212b; color: #ffffff; text-align: center; border-radius: 8px; padding: 12px; position: fixed; z-index: 1000; left: 50%; bottom: 20px; transform: translateX(-50%); font-size: 14px; opacity: 0; transition: opacity 0.3s, bottom 0.3s; border: 1px solid #303f50; box-shadow: 0 4px 12px rgba(0,0,0,0.6); font-weight: 500;}
         #toast.show { visibility: visible; opacity: 1; bottom: 30px; }
     </style>
 </head>
@@ -91,19 +90,18 @@
                 <option value="inv_desc">По цене инвентаря ($)</option>
                 <option value="tb_asc">По разбану ⏳</option>
             </select>
-            <!-- ЧЕКЕР ЗАКРЫТ -->
             <button class="sq-btn btn-secondary" style="width:auto; padding:0 12px; font-size:13px; font-weight:bold; color: #7f91a4;" onclick="showToast('🛠 В разработке...')">🔍 Чекер</button>
             <button class="sq-btn btn-secondary" style="font-size:16px;" onclick="switchView('settings-view')">⚙️</button>
         </div>
         <div class="user-list" id="users-container">Ожидание данных...</div>
     </div>
 
-    <!-- 3. КАРТОЧКА ЮЗЕРА -->
+    <!-- 2. КАРТОЧКА ЮЗЕРА -->
     <div class="container" id="detail-view">
         <div class="nav-bar">
             <button class="sq-btn btn-secondary" onclick="showList()">◀</button>
             <div style="display:flex; gap: 5px;">
-                <button class="sq-btn btn-secondary" onclick="deleteUser()">❌</button>
+                <button class="sq-btn btn-danger" style="background-color: #242f3d;" onclick="deleteUser()">❌</button>
                 <button id="btn-detail-refresh" class="sq-btn btn-secondary" onclick="refreshCurrentUser()">🔄</button>
             </div>
         </div>
@@ -175,7 +173,7 @@
         </div>
     </div>
 
-    <!-- 4. НАСТРОЙКИ -->
+    <!-- 3. НАСТРОЙКИ -->
     <div class="container" id="settings-view">
         <div class="nav-bar">
             <button class="sq-btn btn-secondary" onclick="showList()">◀</button>
@@ -232,7 +230,6 @@
             setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 2500);
         }
         
-        // КОПИРОВАНИЕ ID
         function copyId(text) {
             navigator.clipboard.writeText(text).then(() => {
                 showToast("ID скопирован! ✅");
@@ -350,13 +347,13 @@
                 let tbText = "";
                 let timerHtml = user.tb_time ? `<span style="color:#7f91a4; font-weight:normal; font-size:10px;">(⏳${formatTimeLeft(user.tb_time)})</span>` : "";
 
-                // СТАТУСЫ: Идеальные цвета и тексты!
+                // СТАТУСЫ С НОВЫМИ ЦВЕТАМИ
                 if (user.tb_status === "ban_exact" || user.tb_status === "ban_approx") tbText = `<div class="tb-status-text text-ban"><span style="color: #FF9800;">⏳ Трейдбан</span> ${timerHtml}</div>`;
                 else if (user.tb_status === "ready") tbText = `<div class="tb-status-text" style="color: #a8b5c2;">🔓 Можно снимать</div>`;
                 else if (user.tb_status === "snat") tbText = `<div class="tb-status-text"><span class="text-ready">✅ Снят</span> ${timerHtml}</div>`;
                 else if (user.tb_status === "snat_work") tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#FFC107;">🤝 ВЕД</span> ${timerHtml}</div>`;
                 else if (user.tb_status === "snat_vac") tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#F44336;">🛑 ВАК</span> ${timerHtml}</div>`;
-                else if (user.tb_status === "unbanned") tbText = `<div class="tb-status-text" style="color: #4ade80; font-weight: 800;">💸 Разбанился 💸</div>`;
+                else if (user.tb_status === "unbanned") tbText = `<div class="tb-status-text" style="color: #85bb65; font-weight: 800;">💸 Разбанился 💸</div>`;
 
                 item.innerHTML = `
                     <div class="avatar-container" onclick="showDetail('${user.id}')">
@@ -376,7 +373,7 @@
 
         function filterList() {
             const query = document.getElementById('new-user-input').value.trim().toLowerCase();
-            let filtered = [...usersData].filter(u => u.is_checker !== 1);
+            let filtered = [...usersData];
             
             if (query) filtered = filtered.filter(u => u.name.toLowerCase().includes(query) || u.id.includes(query));
             
@@ -481,11 +478,18 @@
             document.getElementById(`${prefix}-time`).value = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
         }
 
+        // ФИКС ЧЕРНОГО ЭКРАНА (Спрятал чекер из переключения окон)
         function switchView(id) {
-            ['list-view', 'detail-view', 'settings-view', 'checker-view'].forEach(v => document.getElementById(v).classList.remove('active-view'));
-            document.getElementById(id).classList.add('active-view');
+            const views = ['list-view', 'detail-view', 'settings-view'];
+            views.forEach(v => {
+                const el = document.getElementById(v);
+                if (el) el.classList.remove('active-view');
+            });
+            const target = document.getElementById(id);
+            if (target) target.classList.add('active-view');
             if (id === 'list-view') filterList();
         }
+        
         function showList() { switchView('list-view'); currentUser = null; document.getElementById('new-user-input').value = ""; }
         function openSettings() { switchView('settings-view'); }
 

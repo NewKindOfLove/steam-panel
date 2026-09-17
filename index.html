@@ -273,9 +273,10 @@
         let currentUser = null;
         let usersData = [];
         let currentFilteredData = [];
-        let deletedUserIds = new Set(JSON.parse(localStorage.getItem('deletedUserIds') || '[]'));
         
-        // --- УМНЫЙ КЭШ ДЛЯ ОТОБРАЖЕНИЯ ЗАГЛУШОК ---
+        // Исправлено: Удаленные юзеры не кешируются навечно, чтобы не было багов с повторным добавлением
+        let pendingDeletes = new Set();
+        
         let pendingUsers = []; 
         let commandQueue = [];
         let isCommandSending = false;
@@ -362,11 +363,11 @@
                     for (let c of data.result.content[0].children) if (typeof c === 'string') jsonStr += c;
                 }
                 let rawData = JSON.parse(jsonStr || "[]");
-                usersData = rawData.filter(u => !deletedUserIds.has(u.id));
+                usersData = rawData.filter(u => !pendingDeletes.has(u.id));
 
-                // Убираем старые заглушки (живут 5 минут)
-                pendingUsers = pendingUsers.filter(p => (Date.now() - p.timestamp) < 300000);
-                // Убираем те, что уже загрузились с сервера
+                pendingUsers = pendingUsers.filter(p => (Date.now() - p.timestamp) < 300000); // 5 минут макс
+                
+                // Исправлено: теперь корректно находит по URL
                 pendingUsers = pendingUsers.filter(p => !usersData.some(u => u.id === p.id || (u.url && u.url.includes(p.id)) || (p.id.startsWith('chk_') && u.id === p.id)));
 
                 usersData.unshift(...pendingUsers);
@@ -404,7 +405,6 @@
             sendSilentCommand({ action: "force_update_single", steam_id: currentUser.id }, "Обновление... ⏳");
         }
 
-        // --- ИДЕАЛЬНАЯ СИСТЕМА ОЧЕРЕДИ КОМАНД ---
         async function processCommandQueue() {
             if (isCommandSending || commandQueue.length === 0) return;
             isCommandSending = true;
@@ -456,7 +456,7 @@
             }
         }
 
-        function sendSilentCommand(cmdObj, toastMsg = null, timeoutMs = 2000) {
+        function sendSilentCommand(cmdObj, toastMsg = null, timeoutMs = 1500) {
             pendingCommandsCount++;
             commandQueue.push({ cmdObj, toastMsg, timeoutMs });
             processCommandQueue();
@@ -470,6 +470,7 @@
             let formatted = text.replace(/\((.*?)\)/, '<span style="font-size: 10px; color: #888888;">($1)</span>');
             if (formatted.includes('Скрыто')) return `<span style="color:#888888;">${formatted}</span>`;
             if (formatted.includes('Неизвестно')) return `<span style="color:#FFC107;">${formatted}</span>`;
+            if (formatted.includes('Ошибка')) return `<span style="color:#F44336;">${formatted}</span>`;
             if (formatted.includes('Сканирую')) return `<span style="color:#FFC107;">${formatted}</span>`;
             if (formatted.includes('Очередь')) return `<span style="color:#FFC107;">${formatted}</span>`;
             if (formatted.includes('$')) return `<span style="color: #4CAF50;">${formatted}</span>`;
@@ -500,7 +501,7 @@
                 else if (user.tb_status === "snat_vac") tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#F44336;">🛑 ВАК</span> ${timerHtml}${logHtml}</div>`;
                 else if (user.tb_status === "unbanned") tbText = `<div class="tb-status-text" style="color: #4CAF50; font-weight: 800;">💸 Разбанился 💸</div>`;
 
-                let showId = user.id.startsWith('imp_') ? "..." : user.id;
+                let showId = user.id.startsWith('imp_') || user.id.startsWith('http') ? "..." : user.id;
 
                 item.innerHTML = `
                     <div class="avatar-container" onclick="showDetail('${user.id}')">
@@ -606,13 +607,12 @@
             else if (input.includes("steamcommunity.com/id/")) checkId = input.split("id/")[1].replace('/', '');
             if (usersData.some(u => u.id === checkId || (u.url && u.url.includes(checkId)))) { return showToast("⚠️ Пользователь уже есть в базе!", "warning"); }
 
-            // МГНОВЕННАЯ ЗАГЛУШКА (Живет 5 минут)
             pendingUsers.push({ id: checkId, timestamp: Date.now(), name: "Загрузка...", avatar: "", url: input, status: 0, hours: "...", inv: "⏳ Сканирую...", tb_status: "none", notif: 0, is_checker: 0 });
             usersData.unshift(pendingUsers[pendingUsers.length-1]);
             filterList(true);
 
             setButtonLoading('btn-add-user', true, '➕');
-            sendSilentCommand({ action: "add_user", url: input }, "Отправлено боту ⏳", 2000); 
+            sendSilentCommand({ action: "add_user", url: input }, "Отправлено боту ⏳", 1500); 
             document.getElementById('new-user-input').value = ""; document.getElementById('new-user-input').blur();
         }
 
@@ -640,7 +640,7 @@
                 usersData.unshift(pendingUsers[pendingUsers.length-1]);
             }
             
-            sendSilentCommand({ action: "add_users_batch", urls: finalUrls }, `Запущена загрузка ${finalUrls.length} шт. ⏳`, 2000);
+            sendSilentCommand({ action: "add_users_batch", urls: finalUrls }, `Запущена загрузка ${finalUrls.length} шт. ⏳`, 1500);
             document.getElementById('import-textarea').value = "";
             switchView('list-view');
         }
@@ -664,13 +664,13 @@
             
             renderChecker();
             setButtonLoading('btn-checker-search', true, '🔍');
-            sendSilentCommand({ action: "checker_scan", url: input }, "Сканирую CS2...", 2000);
+            sendSilentCommand({ action: "checker_scan", url: input }, "Сканирую CS2...", 1500);
             document.getElementById('checker-input').blur();
         }
 
         function approveChecker(id, btnElement) {
             btnElement.innerText = "⏳ Добавляю...";
-            sendSilentCommand({ action: "approve_checker", steam_id: id }, "Переношу в базу...", 2000);
+            sendSilentCommand({ action: "approve_checker", steam_id: id }, "Переношу в базу...", 1500);
             usersData = usersData.filter(u => { if(u.id === id) { u.is_checker = 0; } return true; });
             setTimeout(renderChecker, 500);
         }
@@ -764,7 +764,7 @@
             
             document.getElementById('ban-ui').style.display = 'none'; document.getElementById('snat-ui').style.display = 'none';
             showDetail(currentUser.id, true); filterList(false); 
-            sendSilentCommand({ action: "update_tradeban", steam_id: currentUser.id, tb_status: status, tb_time: timeStamp, log: logNum }, "Сохраняю...", 2000);
+            sendSilentCommand({ action: "update_tradeban", steam_id: currentUser.id, tb_status: status, tb_time: timeStamp, log: logNum }, "Сохраняю...", 1500);
         }
 
         function fillInputsFromUnix(unix, prefix) {
@@ -824,7 +824,7 @@
             allNotifs = document.getElementById('toggle-all-notifs').checked; localStorage.setItem('allNotifs', allNotifs);
             usePagination = document.getElementById('toggle-pagination').checked; localStorage.setItem('usePagination', usePagination);
             showLogs = document.getElementById('toggle-logs').checked; localStorage.setItem('showLogs', showLogs);
-            filterList(false); sendSilentCommand({ action: "set_all_notifs", value: allNotifs ? 1 : 0 }, "Настройки сохранены", 2000);
+            filterList(false); sendSilentCommand({ action: "set_all_notifs", value: allNotifs ? 1 : 0 }, "Настройки сохранены", 1500);
         }
 
         document.getElementById("detail-note").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveNote(); document.getElementById("detail-note").blur();} });
@@ -832,14 +832,14 @@
         function toggleNotif(event, id) {
             event.stopPropagation();
             let user = usersData.find(u => u.id === id); user.notif = user.notif ? 0 : 1;
-            filterList(false); sendSilentCommand({ action: "toggle_notif", steam_id: id }, user.notif ? "Уведомления включены" : "Уведомления отключены", 2000);
+            filterList(false); sendSilentCommand({ action: "toggle_notif", steam_id: id }, user.notif ? "Уведомления включены" : "Уведомления отключены", 1500);
         }
 
         function saveNote() {
             if (!currentUser) return;
             currentUser.note = document.getElementById('detail-note').value;
             setButtonLoading('btn-save-note', true, '💾');
-            sendSilentCommand({ action: "update_note", steam_id: currentUser.id, note: currentUser.note }, "Примечание сохранено ✅", 2000);
+            sendSilentCommand({ action: "update_note", steam_id: currentUser.id, note: currentUser.note }, "Примечание сохранено ✅", 1500);
         }
 
         function deleteUser(targetId = null) {
@@ -847,11 +847,10 @@
             if (!idToDelete) return;
             tg.showConfirm("Удалить пользователя из базы?", passed => {
                 if (passed) {
-                    deletedUserIds.add(idToDelete); 
-                    localStorage.setItem('deletedUserIds', JSON.stringify([...deletedUserIds])); 
+                    pendingDeletes.add(idToDelete); 
                     usersData = usersData.filter(u => u.id !== idToDelete);
                     filterList(true); if (!targetId) showList();
-                    sendSilentCommand({ action: "delete", steam_id: idToDelete }, "Пользователь удален ❌", 2000);
+                    sendSilentCommand({ action: "delete", steam_id: idToDelete }, "Пользователь удален ❌", 1500);
                 }
             });
         }

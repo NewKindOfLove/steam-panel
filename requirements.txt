@@ -1,4 +1,4 @@
 aiogram
 google-generativeai
 aiohttp
-apscheduler
+APScheduler==3.11.0

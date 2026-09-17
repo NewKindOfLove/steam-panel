@@ -131,7 +131,7 @@ async def poll_commands():
         except: cmds = []
         if not cmds: return
         
-        # Сразу чистим команды, чтобы не блокировать панель
+        # Сразу чистим очередь, чтобы не было дублей и зависаний
         empty_content = json.dumps([{"tag": "p", "children": ["[]"]}])
         await telegraph_request("editPage", access_token=TG_TOKEN, path=TG_CMD, title="CMD", content=empty_content)
         
@@ -141,8 +141,8 @@ async def poll_commands():
                 action = data.get("action")
                 steam_id = data.get("steam_id")
                 
+                # --- ПОСЛЕДОВАТЕЛЬНАЯ СТАБИЛЬНАЯ ОБРАБОТКА ---
                 if action == "force_update" or action == "force_update_single":
-                    # Эти команды оставляем синхронными, они быстрые
                     async with aiohttp.ClientSession() as session:
                         if action == "force_update":
                             async with db.execute("SELECT steam_id FROM users WHERE is_checker = 0") as cursor:
@@ -162,126 +162,75 @@ async def poll_commands():
                     changed = True
 
                 elif action == "checker_scan":
-                    # ФОНОВЫЙ ЧЕКЕР
                     input_text = data.get("url", "").strip()
-                    async def bg_checker(url):
-                        async with aiohttp.ClientSession() as session:
-                            new_steam_id = await resolve_vanity_url(session, url)
-                            if not new_steam_id:
-                                await send_alert(f"❌ Чекер: Неверная ссылка ({url})", is_system=True)
-                                return
-                            
-                            chk_id = f"chk_{new_steam_id}"
-                            async with aiosqlite.connect(DB_NAME) as bg_db:
-                                await bg_db.execute("INSERT OR IGNORE INTO users (steam_id, name, inv_value, is_checker, avatar, profile_url, cs_hours, added_date) VALUES (?, ?, ?, 1, '', '', '...', '')", 
-                                                    (chk_id, "Загрузка...", "⏳ Сканирую..."))
-                                await bg_db.commit()
-                            await sync_to_cloud() # Сразу показываем загрузку
-                            
+                    async with aiohttp.ClientSession() as session:
+                        new_steam_id = await resolve_vanity_url(session, input_text)
+                        if new_steam_id:
                             profile = await get_steam_profile(session, new_steam_id)
                             if profile:
                                 cs_hours = await get_cs_hours(session, new_steam_id)
                                 inv_cs = await get_inventory_cs2(session, new_steam_id)
-                                async with aiosqlite.connect(DB_NAME) as bg_db:
-                                    await bg_db.execute("UPDATE users SET name=?, avatar=?, profile_url=?, last_status=?, cs_hours=?, inv_value=? WHERE steam_id=?", 
-                                        (profile.get('personaname', 'User'), profile.get('avatarfull', ''), profile['profileurl'], profile.get('personastate', 0), cs_hours, inv_cs, chk_id))
-                                    await bg_db.commit()
-                                await sync_to_cloud()
+                                chk_id = f"chk_{new_steam_id}"
+                                await db.execute("""
+                                    INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, 1, '')
+                                """, (chk_id, profile.get('personaname', 'User'), profile.get('avatarfull', ''), profile['profileurl'], profile.get('personastate', 0), cs_hours, inv_cs))
+                                changed = True
                             else:
-                                async with aiosqlite.connect(DB_NAME) as bg_db:
-                                    await bg_db.execute("DELETE FROM users WHERE steam_id=?", (chk_id,))
-                                    await bg_db.commit()
-                                await sync_to_cloud()
                                 await send_alert(f"❌ Чекер: Профиль скрыт или не существует", is_system=True)
+                        else:
+                            await send_alert(f"❌ Чекер: Неверная ссылка ({input_text})", is_system=True)
 
-                    asyncio.create_task(bg_checker(input_text))
-
-                # --- ФОНОВЫЙ МАССОВЫЙ ИМПОРТ ---
                 elif action == "add_users_batch":
                     urls = data.get("urls", [])
-                    async def bg_batch(urls_list):
-                        async with aiohttp.ClientSession() as session:
-                            valid_ids = []
-                            # 1. Быстро ставим заглушки
-                            async with aiosqlite.connect(DB_NAME) as bg_db:
-                                for url in urls_list:
-                                    new_steam_id = await resolve_vanity_url(session, url)
-                                    if not new_steam_id: continue
-                                    async with bg_db.execute("SELECT steam_id FROM users WHERE steam_id = ?", (new_steam_id,)) as cursor:
-                                        if await cursor.fetchone(): continue
-                                    current_date = datetime.now().strftime("%d.%m.%Y")
-                                    await bg_db.execute("""
-                                        INSERT INTO users (steam_id, name, inv_value, is_checker, added_date, notifications, profile_url, avatar, cs_hours)
-                                        VALUES (?, ?, ?, 0, ?, 0, ?, '', '...')
-                                    """, (new_steam_id, "Ожидание...", "⏳ Очередь...", current_date, f"https://steamcommunity.com/profiles/{new_steam_id}"))
-                                    valid_ids.append(new_steam_id)
-                                await bg_db.commit()
-                                
-                            if not valid_ids: return
-                            await sync_to_cloud() # Показываем всю пачку в меню
+                    added_count = 0
+                    async with aiohttp.ClientSession() as session:
+                        for input_text in urls:
+                            new_steam_id = await resolve_vanity_url(session, input_text)
+                            if not new_steam_id: continue
                             
-                            # 2. Не спеша парсим
-                            added_count = 0
-                            for sid in valid_ids:
-                                profile = await get_steam_profile(session, sid)
-                                if profile:
-                                    cs_hours = await get_cs_hours(session, sid)
-                                    inv_val = await get_inventory_cs2(session, sid)
-                                    async with aiosqlite.connect(DB_NAME) as bg_db:
-                                        await bg_db.execute("UPDATE users SET name=?, avatar=?, profile_url=?, last_status=?, cs_hours=?, inv_value=? WHERE steam_id=?", 
-                                            (profile.get('personaname', 'User'), profile.get('avatarfull', ''), profile['profileurl'], profile.get('personastate', 0), cs_hours, inv_val, sid))
-                                        await bg_db.commit()
-                                    added_count += 1
-                                else:
-                                    async with aiosqlite.connect(DB_NAME) as bg_db:
-                                        await bg_db.execute("DELETE FROM users WHERE steam_id=?", (sid,))
-                                        await bg_db.commit()
-                                
-                                # Обновляем UI каждые 2 юзера
-                                if added_count % 2 == 0: await sync_to_cloud()
-                                await asyncio.sleep(2.5) 
-                                
-                            await sync_to_cloud()
-                            if added_count > 0: await send_alert(f"✅ Массовый импорт завершен: добавлено {added_count} пользователей!", parse_mode="HTML")
-
-                    asyncio.create_task(bg_batch(urls))
-
-                # --- ФОНОВОЕ ДОБАВЛЕНИЕ ОДНОГО ЮЗЕРА ---
-                elif action == "add_user":
-                    input_text = data.get("url", "").strip()
-                    async def bg_add_user(url):
-                        async with aiohttp.ClientSession() as session:
-                            new_steam_id = await resolve_vanity_url(session, url)
-                            if not new_steam_id: return
-                            
-                            async with aiosqlite.connect(DB_NAME) as bg_db:
-                                async with bg_db.execute("SELECT steam_id FROM users WHERE steam_id = ?", (new_steam_id,)) as cursor:
-                                    if await cursor.fetchone(): return
-                                current_date = datetime.now().strftime("%d.%m.%Y")
-                                await bg_db.execute("""
-                                    INSERT INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0)
-                                """, (new_steam_id, "Загрузка...", "", f"https://steamcommunity.com/profiles/{new_steam_id}", 0, "...", "⏳ Сканирую...", current_date))
-                                await bg_db.commit()
-                            await sync_to_cloud() # Сразу в UI
+                            async with db.execute("SELECT steam_id FROM users WHERE steam_id = ?", (new_steam_id,)) as cursor:
+                                if await cursor.fetchone(): continue
                             
                             profile = await get_steam_profile(session, new_steam_id)
                             if profile:
                                 cs_hours = await get_cs_hours(session, new_steam_id)
                                 inv_val = await get_inventory_cs2(session, new_steam_id)
-                                async with aiosqlite.connect(DB_NAME) as bg_db:
-                                    await bg_db.execute("UPDATE users SET name=?, avatar=?, profile_url=?, last_status=?, cs_hours=?, inv_value=? WHERE steam_id=?", 
-                                        (profile.get('personaname', 'User'), profile.get('avatarfull', ''), profile['profileurl'], profile.get('personastate', 0), cs_hours, inv_val, new_steam_id))
-                                    await bg_db.commit()
-                            else:
-                                async with aiosqlite.connect(DB_NAME) as bg_db:
-                                    await bg_db.execute("DELETE FROM users WHERE steam_id=?", (new_steam_id,))
-                                    await bg_db.commit()
-                            await sync_to_cloud()
-                            
-                    asyncio.create_task(bg_add_user(input_text))
+                                current_date = datetime.now().strftime("%d.%m.%Y")
+                                
+                                await db.execute("""
+                                    INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0)
+                                """, (new_steam_id, profile.get('personaname', 'User'), profile.get('avatarfull', ''), profile['profileurl'], profile.get('personastate', 0), cs_hours, inv_val, current_date))
+                                added_count += 1
+                                
+                                # Отправляем пачки в облако, чтобы интерфейс видел прогресс
+                                if added_count % 3 == 0:
+                                    await db.commit()
+                                    await sync_to_cloud()
+                                
+                                await asyncio.sleep(1.5) # Пауза чтобы не злить WOK
+                    changed = True
+                    if added_count > 0:
+                        await send_alert(f"✅ Массовый импорт завершен: добавлено {added_count} пользователей!", parse_mode="HTML")
 
-                # Мгновенные команды
+                elif action == "add_user":
+                    input_text = data.get("url", "").strip()
+                    async with aiohttp.ClientSession() as session:
+                        new_steam_id = await resolve_vanity_url(session, input_text)
+                        if new_steam_id:
+                            profile = await get_steam_profile(session, new_steam_id)
+                            if profile:
+                                cs_hours = await get_cs_hours(session, new_steam_id)
+                                inv_val = await get_inventory_cs2(session, new_steam_id)
+                                    
+                                current_date = datetime.now().strftime("%d.%m.%Y")
+                                await db.execute("""
+                                    INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0)
+                                """, (new_steam_id, profile.get('personaname', 'User'), profile.get('avatarfull', ''), profile['profileurl'], profile.get('personastate', 0), cs_hours, inv_val, current_date))
+                                changed = True
+
                 elif action == "approve_checker":
                     if steam_id.startswith("chk_"):
                         real_id = steam_id[4:]
@@ -289,6 +238,7 @@ async def poll_commands():
                         await db.execute("DELETE FROM users WHERE steam_id = ?", (real_id,))
                         await db.execute("UPDATE users SET steam_id = ?, is_checker = 0, added_date = ? WHERE steam_id = ?", (real_id, current_date, steam_id))
                         changed = True
+
                 elif action == "set_all_notifs":
                     val = '1' if data.get("value") else '0'
                     await db.execute("UPDATE settings SET value = ? WHERE key = 'all_notifs'", (val,))

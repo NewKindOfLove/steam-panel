@@ -2,3 +2,4 @@ aiogram
 google-generativeai
 aiohttp
 APScheduler==3.11.0
+aiosqlite

@@ -6,22 +6,21 @@
     <title>Steam Panel</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        body { background-color: var(--tg-theme-bg-color, #17212b); color: var(--tg-theme-text-color, #ffffff); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; }
+        body { background-color: #17212b; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; }
         .container { padding: 15px; display: none; } .active-view { display: block; }
         .top-bar { display: flex; gap: 10px; margin-bottom: 15px; }
-        .top-bar input { flex-grow: 1; padding: 10px; border-radius: 8px; background-color: var(--tg-theme-secondary-bg-color, #242f3d); color: var(--tg-theme-text-color, #ffffff); border: 1px solid var(--tg-theme-hint-color, #7f91a4); outline: none; }
+        .top-bar input { flex-grow: 1; padding: 10px; border-radius: 8px; background-color: #242f3d; color: #ffffff; border: 1px solid #7f91a4; outline: none; }
         
-        .sq-btn { width: 42px; height: 42px; border-radius: 8px; border: none; display: flex; align-items: center; justify-content: center; font-size: 18px; cursor: pointer; background-color: var(--tg-theme-button-color, #5288c1); color: var(--tg-theme-button-text-color, #ffffff); transition: 0.2s; }
+        /* ВСЕ КНОПКИ СТРОГО ТЕМНЫЕ ПО УМОЛЧАНИЮ */
+        .sq-btn { width: 42px; height: 42px; border-radius: 8px; border: none; display: flex; align-items: center; justify-content: center; font-size: 18px; cursor: pointer; background-color: #242f3d; color: #ffffff; transition: 0.2s; }
         .sq-btn:active { opacity: 0.7; transform: scale(0.95); } 
-        .btn-secondary { background-color: var(--tg-theme-secondary-bg-color, #242f3d); color: var(--tg-theme-text-color); } 
-        .btn-danger { background-color: #e53935; color: white; }
         
         .user-list { display: flex; flex-direction: column; gap: 10px; }
-        .user-item { display: flex; align-items: center; padding: 10px; background-color: var(--tg-theme-secondary-bg-color, #242f3d); border-radius: 10px; cursor: pointer; position: relative; min-height: 50px; }
+        .user-item { display: flex; align-items: center; padding: 10px; background-color: #242f3d; border-radius: 10px; cursor: pointer; position: relative; min-height: 50px; }
         .avatar-container { position: relative; margin-right: 15px; }
         .avatar-small { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; display: block;}
         
-        .status-badge { position: absolute; bottom: -2px; right: -2px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--tg-theme-secondary-bg-color, #242f3d); display: none; }
+        .status-badge { position: absolute; bottom: -2px; right: -2px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #242f3d; display: none; }
         .bg-online { background-color: #4CAF50; display: block; } 
         .bg-ingame { background-color: #7FFF00; display: block; box-shadow: 0 0 8px #7FFF00;} 
         .bg-away { background-color: #FFC107; display: block; }
@@ -36,22 +35,22 @@
 
         .nav-bar { display: flex; justify-content: space-between; margin-bottom: 20px; }
         .card-header { display: flex; flex-direction: column; align-items: center; text-align: center; margin-bottom: 20px; }
-        .avatar-big { width: 100px; height: 100px; border-radius: 50%; margin-bottom: 10px; border: 3px solid var(--tg-theme-button-color, #5288c1); object-fit: cover; }
+        .avatar-big { width: 100px; height: 100px; border-radius: 50%; margin-bottom: 10px; border: 3px solid #5288c1; object-fit: cover; }
         .card-name { font-size: 22px; font-weight: bold; margin-bottom: 5px; }
-        .card-id-text { font-size: 13px; color: var(--tg-theme-hint-color); margin-bottom: 3px; }
+        .card-id-text { font-size: 13px; color: #7f91a4; margin-bottom: 3px; }
         
-        .clickable-id { color: var(--tg-theme-button-color, #5288c1); cursor: pointer; text-decoration: underline; }
+        .clickable-id { color: #5288c1; cursor: pointer; text-decoration: underline; }
         .clickable-id:active { opacity: 0.7; }
 
-        .card-stats { background-color: var(--tg-theme-secondary-bg-color, #242f3d); padding: 15px; border-radius: 10px; margin-bottom: 15px; position: relative;}
+        .card-stats { background-color: #242f3d; padding: 15px; border-radius: 10px; margin-bottom: 15px; position: relative;}
         .stat-row { display: flex; justify-content: space-between; margin-bottom: 8px; align-items: center;} .stat-row:last-child { margin-bottom: 0; } .stat-value { font-weight: bold; text-align:right;}
         
-        select { background-color: var(--tg-theme-bg-color, #17212b); color: var(--tg-theme-text-color, #ffffff); border: 1px solid var(--tg-theme-hint-color, #7f91a4); border-radius: 5px; padding: 5px; outline: none; font-weight: bold; font-size: 14px;}
+        select { background-color: #17212b; color: #ffffff; border: 1px solid #7f91a4; border-radius: 5px; padding: 5px; outline: none; font-weight: bold; font-size: 14px;}
         .date-sel { width: 55px; text-align: center; }
-        .snat-input { width: 75px; padding: 4px; border-radius: 5px; background-color: var(--tg-theme-bg-color, #17212b); color: white; border: 1px solid var(--tg-theme-hint-color, #7f91a4); outline: none; text-align: center; font-size: 14px;}
+        .snat-input { width: 75px; padding: 4px; border-radius: 5px; background-color: #17212b; color: white; border: 1px solid #7f91a4; outline: none; text-align: center; font-size: 14px;}
         input[type="time"]::-webkit-calendar-picker-indicator { display: none; -webkit-appearance: none; } input[type="time"] { -moz-appearance: textfield; }
 
-        .param-box { background-color: var(--tg-theme-bg-color, #17212b); padding: 12px; border-radius: 8px; margin-top:10px; display:none; flex-direction:column; gap:12px; border: 1px solid #303f50; }
+        .param-box { background-color: #17212b; padding: 12px; border-radius: 8px; margin-top:10px; display:none; flex-direction:column; gap:12px; border: 1px solid #303f50; }
         .param-header { display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid #303f50; padding-bottom: 8px; }
         .param-title { font-weight:bold; color:#5288c1; font-size:13px; max-width: 120px; line-height: 1.2; }
         .param-radios { font-size:12px; font-weight:bold; display: flex; gap: 10px; align-items: center;}
@@ -62,16 +61,16 @@
         .input-group { display:flex; flex-direction:column; align-items:center; }
         .input-label { font-size:10px; color:#7f91a4; margin-bottom:4px; font-weight: bold; text-transform: uppercase; }
 
-        textarea { width: 100%; box-sizing: border-box; padding: 10px; background-color: var(--tg-theme-bg-color, #17212b); color: var(--tg-theme-text-color, #ffffff); border: 1px solid var(--tg-theme-hint-color, #7f91a4); border-radius: 8px; min-height: 80px; resize: none; font-family: inherit; margin-bottom: 15px; }
+        textarea { width: 100%; box-sizing: border-box; padding: 10px; background-color: #17212b; color: #ffffff; border: 1px solid #7f91a4; border-radius: 8px; min-height: 80px; resize: none; font-family: inherit; margin-bottom: 15px; }
         
-        .setting-row { display: flex; justify-content: space-between; align-items: center; background-color: var(--tg-theme-secondary-bg-color, #242f3d); padding: 15px; border-radius: 10px; margin-bottom: 15px; }
+        .setting-row { display: flex; justify-content: space-between; align-items: center; background-color: #242f3d; padding: 15px; border-radius: 10px; margin-bottom: 15px; }
         .switch { position: relative; display: inline-block; width: 40px; height: 24px; } .switch input { opacity: 0; width: 0; height: 0; }
         .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #e53935; transition: .4s; border-radius: 24px; }
         .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
         input:checked + .slider { background-color: #4CAF50; } input:checked + .slider:before { transform: translateX(16px); }
         
-        /* ИДЕАЛЬНЫЕ ТЕМНЫЕ УВЕДОМЛЕНИЯ */
-        #toast { visibility: hidden; min-width: 200px; background-color: #17212b; color: #ffffff; text-align: center; border-radius: 8px; padding: 12px; position: fixed; z-index: 1000; left: 50%; bottom: 20px; transform: translateX(-50%); font-size: 14px; opacity: 0; transition: opacity 0.3s, bottom 0.3s; border: 1px solid #303f50; box-shadow: 0 4px 12px rgba(0,0,0,0.6); font-weight: 500;}
+        /* ИДЕАЛЬНЫЙ ТЕМНЫЙ ТОСТ БЕЗ БЕЛЫХ ФОНОВ */
+        #toast { visibility: hidden; min-width: 200px; background-color: rgba(36, 47, 61, 0.95); color: #ffffff; text-align: center; border-radius: 8px; padding: 12px; position: fixed; z-index: 1000; left: 50%; bottom: 20px; transform: translateX(-50%); font-size: 14px; opacity: 0; transition: opacity 0.3s, bottom 0.3s; box-shadow: 0 4px 12px rgba(0,0,0,0.5); font-weight: bold; border: none;}
         #toast.show { visibility: visible; opacity: 1; bottom: 30px; }
     </style>
 </head>
@@ -82,7 +81,7 @@
     <div class="container active-view" id="list-view">
         <div class="top-bar">
             <input type="text" id="new-user-input" placeholder="Поиск (Имя или ID)">
-            <button id="btn-global-refresh" class="sq-btn btn-secondary" onclick="manualRefresh()">🔄</button>
+            <button id="btn-global-refresh" class="sq-btn" onclick="manualRefresh()">🔄</button>
         </div>
         <div style="display:flex; justify-content:space-between; margin-bottom: 15px; gap: 8px;">
             <select id="sort-select" style="flex-grow:1; font-size: 13px;" onchange="filterList()">
@@ -90,19 +89,35 @@
                 <option value="inv_desc">По цене инвентаря ($)</option>
                 <option value="tb_asc">По разбану ⏳</option>
             </select>
-            <button class="sq-btn btn-secondary" style="width:auto; padding:0 12px; font-size:13px; font-weight:bold; color: #7f91a4;" onclick="showToast('🛠 В разработке...')">🔍 Чекер</button>
-            <button class="sq-btn btn-secondary" style="font-size:16px;" onclick="switchView('settings-view')">⚙️</button>
+            <button class="sq-btn" style="width:auto; padding:0 12px; font-size:13px; font-weight:bold; color: #4CAF50;" onclick="switchView('checker-view')">🔍 Чекер</button>
+            <button class="sq-btn" style="font-size:16px;" onclick="switchView('settings-view')">⚙️</button>
         </div>
         <div class="user-list" id="users-container">Ожидание данных...</div>
     </div>
 
-    <!-- 2. КАРТОЧКА ЮЗЕРА -->
+    <!-- 2. ОКНО ЧЕКЕРА ИНВЕНТАРЕЙ -->
+    <div class="container" id="checker-view">
+        <div class="nav-bar">
+            <button class="sq-btn" onclick="showList()">◀</button>
+            <h3 style="margin:0; align-self:center;">Чекер инвентарей</h3>
+            <div style="width:42px;"></div>
+        </div>
+        <div class="top-bar" style="margin-bottom: 20px;">
+            <input type="text" id="checker-input" placeholder="Steam ссылка или ID">
+            <button id="btn-checker-search" class="sq-btn" onclick="runChecker()">🔍</button>
+        </div>
+        <div id="checker-results" class="user-list">
+            <div style="text-align:center; color:#7f91a4; font-size: 14px; margin-top:20px;">Введи ссылку, чтобы проверить аккаунт.</div>
+        </div>
+    </div>
+
+    <!-- 3. КАРТОЧКА ЮЗЕРА -->
     <div class="container" id="detail-view">
         <div class="nav-bar">
-            <button class="sq-btn btn-secondary" onclick="showList()">◀</button>
+            <button class="sq-btn" onclick="showList()">◀</button>
             <div style="display:flex; gap: 5px;">
-                <button class="sq-btn btn-danger" style="background-color: #242f3d;" onclick="deleteUser()">❌</button>
-                <button id="btn-detail-refresh" class="sq-btn btn-secondary" onclick="refreshCurrentUser()">🔄</button>
+                <button class="sq-btn" onclick="deleteUser()">❌</button>
+                <button id="btn-detail-refresh" class="sq-btn" onclick="refreshCurrentUser()">🔄</button>
             </div>
         </div>
         <div class="card-header">
@@ -141,11 +156,11 @@
                     <div class="input-group"><span class="input-label">День</span><select id="ban-day" class="date-sel"></select></div>
                     <div class="input-group"><span class="input-label">Месяц</span><select id="ban-month" class="date-sel"></select></div>
                     <div class="input-group" style="margin-left: 5px;"><span class="input-label">Время</span><input type="time" id="ban-time" class="snat-input" step="60"></div>
-                    <button class="sq-btn btn-secondary" style="width: 32px; height: 32px; font-size: 14px; margin-bottom: 1px; margin-left:auto;" onclick="saveBanExact()">💾</button>
+                    <button id="btn-save-exact" class="sq-btn" style="width: 32px; height: 32px; font-size: 14px; margin-bottom: 1px; margin-left:auto;" onclick="saveBanExact()">💾</button>
                 </div>
                 <div class="param-inputs-wrap" id="ban-approx-inputs" style="display:none;">
                     <div class="input-group"><span class="input-label">Дней</span><select id="ban-days" class="date-sel" style="width: 60px;"></select></div>
-                    <button class="sq-btn btn-secondary" style="width: 32px; height: 32px; font-size: 14px; margin-bottom: 1px; margin-left:auto;" onclick="saveBanApprox()">💾</button>
+                    <button id="btn-save-approx" class="sq-btn" style="width: 32px; height: 32px; font-size: 14px; margin-bottom: 1px; margin-left:auto;" onclick="saveBanApprox()">💾</button>
                 </div>
             </div>
 
@@ -162,7 +177,7 @@
                     <div class="input-group"><span class="input-label">День</span><select id="snat-day" class="date-sel"></select></div>
                     <div class="input-group"><span class="input-label">Месяц</span><select id="snat-month" class="date-sel"></select></div>
                     <div class="input-group" style="margin-left: 5px;"><span class="input-label">Время</span><input type="time" id="snat-time" class="snat-input" step="60"></div>
-                    <button class="sq-btn btn-secondary" style="width: 32px; height: 32px; font-size: 14px; margin-bottom: 1px; margin-left:auto;" onclick="saveSnat()">💾</button>
+                    <button id="btn-save-snat" class="sq-btn" style="width: 32px; height: 32px; font-size: 14px; margin-bottom: 1px; margin-left:auto;" onclick="saveSnat()">💾</button>
                 </div>
             </div>
         </div>
@@ -173,10 +188,10 @@
         </div>
     </div>
 
-    <!-- 3. НАСТРОЙКИ -->
+    <!-- 4. НАСТРОЙКИ -->
     <div class="container" id="settings-view">
         <div class="nav-bar">
-            <button class="sq-btn btn-secondary" onclick="showList()">◀</button>
+            <button class="sq-btn" onclick="showList()">◀</button>
             <h3 style="margin:0; align-self:center;">Настройки</h3>
             <div style="width:42px;"></div>
         </div>
@@ -230,6 +245,7 @@
             setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 2500);
         }
         
+        // КОПИРОВАНИЕ ID С ТОСТОМ
         function copyId(text) {
             navigator.clipboard.writeText(text).then(() => {
                 showToast("ID скопирован! ✅");
@@ -238,9 +254,19 @@
             });
         }
         
+        // БРОНЕБОЙНЫЙ СБРОС ИКОНОК КНОПОК
         function setButtonLoading(btnId, isLoading, originalIcon = '🔄') {
             const btn = document.getElementById(btnId);
             if(btn) btn.innerText = isLoading ? '⏳' : originalIcon;
+        }
+
+        function resetAllButtons() {
+            setButtonLoading('btn-global-refresh', false, '🔄');
+            setButtonLoading('btn-detail-refresh', false, '🔄');
+            setButtonLoading('btn-checker-search', false, '🔍');
+            setButtonLoading('btn-save-exact', false, '💾');
+            setButtonLoading('btn-save-approx', false, '💾');
+            setButtonLoading('btn-save-snat', false, '💾');
         }
 
         async function fetchLiveDB(manual = false) {
@@ -257,6 +283,8 @@
                 
                 if(document.getElementById('list-view').classList.contains('active-view')) {
                     filterList(); 
+                } else if (document.getElementById('checker-view').classList.contains('active-view')) {
+                    renderChecker();
                 } else if (currentUser) {
                     const upUser = usersData.find(u => u.id === currentUser.id);
                     if (upUser) {
@@ -276,17 +304,19 @@
         function manualRefresh() { 
             document.getElementById('new-user-input').value = ""; 
             setButtonLoading('btn-global-refresh', true, '🔄');
-            sendSilentCommand({ action: "force_update" }, () => setButtonLoading('btn-global-refresh', false, '🔄'));
+            sendSilentCommand({ action: "force_update" });
         }
         
         function refreshCurrentUser() {
             if (!currentUser) return;
             setButtonLoading('btn-detail-refresh', true, '🔄');
-            sendSilentCommand({ action: "force_update_single", steam_id: currentUser.id }, () => setButtonLoading('btn-detail-refresh', false, '🔄'));
+            sendSilentCommand({ action: "force_update_single", steam_id: currentUser.id });
         }
 
         async function sendSilentCommand(cmdObj, callback = null) {
-            showToast("Обработка...");
+            if(cmdObj.action === "checker_scan") showToast("Сканирую CS2 (≈3 сек)...");
+            else showToast("Обработка...");
+            
             try {
                 const r = await fetch(`https://api.telegra.ph/getPage/${CMD_PATH}?return_content=true&_=${Date.now()}`);
                 const data = await r.json();
@@ -310,12 +340,15 @@
                 
                 await fetch(`https://api.telegra.ph/editPage/${CMD_PATH}`, { method: "POST", body: formData });
                 
+                // ПРИНУДИТЕЛЬНЫЙ СБРОС ВСЕХ КНОПОК ЧЕРЕЗ 3 СЕКУНДЫ
                 setTimeout(() => {
                     fetchLiveDB(true);
+                    resetAllButtons();
                     if(callback) callback();
-                }, 2500);
+                }, 3000);
             } catch(e) { 
                 showToast("Ошибка сети"); 
+                resetAllButtons();
                 if(callback) callback();
             }
         }
@@ -347,13 +380,13 @@
                 let tbText = "";
                 let timerHtml = user.tb_time ? `<span style="color:#7f91a4; font-weight:normal; font-size:10px;">(⏳${formatTimeLeft(user.tb_time)})</span>` : "";
 
-                // СТАТУСЫ С НОВЫМИ ЦВЕТАМИ
-                if (user.tb_status === "ban_exact" || user.tb_status === "ban_approx") tbText = `<div class="tb-status-text text-ban"><span style="color: #FF9800;">⏳ Трейдбан</span> ${timerHtml}</div>`;
+                // СТАТУСЫ: Идеальные цвета! (Трейдбан = оранжевый, Можно снимать = серый замок, Разбанился = зеленые бабки, Снят = зеленый)
+                if (user.tb_status === "ban_exact" || user.tb_status === "ban_approx") tbText = `<div class="tb-status-text"><span style="color: #FF9800;">⏳ Трейдбан</span> ${timerHtml}</div>`;
                 else if (user.tb_status === "ready") tbText = `<div class="tb-status-text" style="color: #a8b5c2;">🔓 Можно снимать</div>`;
-                else if (user.tb_status === "snat") tbText = `<div class="tb-status-text"><span class="text-ready">✅ Снят</span> ${timerHtml}</div>`;
+                else if (user.tb_status === "snat") tbText = `<div class="tb-status-text"><span style="color: #4CAF50;">✅ Снят</span> ${timerHtml}</div>`;
                 else if (user.tb_status === "snat_work") tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#FFC107;">🤝 ВЕД</span> ${timerHtml}</div>`;
                 else if (user.tb_status === "snat_vac") tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#F44336;">🛑 ВАК</span> ${timerHtml}</div>`;
-                else if (user.tb_status === "unbanned") tbText = `<div class="tb-status-text" style="color: #85bb65; font-weight: 800;">💸 Разбанился 💸</div>`;
+                else if (user.tb_status === "unbanned") tbText = `<div class="tb-status-text" style="color: #4CAF50; font-weight: 800;">💸 Разбанился 💸</div>`;
 
                 item.innerHTML = `
                     <div class="avatar-container" onclick="showDetail('${user.id}')">
@@ -373,7 +406,7 @@
 
         function filterList() {
             const query = document.getElementById('new-user-input').value.trim().toLowerCase();
-            let filtered = [...usersData];
+            let filtered = [...usersData].filter(u => u.is_checker !== 1);
             
             if (query) filtered = filtered.filter(u => u.name.toLowerCase().includes(query) || u.id.includes(query));
             
@@ -410,6 +443,56 @@
                 document.getElementById('new-user-input').blur();
             }
         });
+
+        // --- ЛОГИКА ЧЕКЕРА ---
+        function runChecker() {
+            const input = document.getElementById('checker-input').value.trim();
+            if (!input) return;
+            const isSteam = input.includes("steamcommunity.com") || /^\d{17}$/.test(input);
+            if (!isSteam) { showToast("❌ Введи Steam ссылку или ID64!"); return; }
+            
+            setButtonLoading('btn-checker-search', true, '🔍');
+            sendSilentCommand({ action: "checker_scan", url: input });
+            
+            document.getElementById('checker-input').value = "";
+            document.getElementById('checker-input').blur();
+        }
+
+        function approveChecker(id, btnElement) {
+            btnElement.innerText = "⏳ Добавляю...";
+            sendSilentCommand({ action: "approve_checker", steam_id: id });
+            usersData = usersData.filter(u => { if(u.id === id) { u.is_checker = 0; } return true; });
+            setTimeout(renderChecker, 1000);
+            showToast("Переношу в основную базу...");
+        }
+
+        function renderChecker() {
+            const container = document.getElementById('checker-results'); container.innerHTML = '';
+            const checkerUsers = usersData.filter(u => u.is_checker === 1).reverse();
+            
+            if (checkerUsers.length === 0) {
+                container.innerHTML = '<div style="text-align:center; color:#7f91a4; font-size: 14px; margin-top:20px;">Введи ссылку вверху, чтобы проверить аккаунт.</div>';
+                return;
+            }
+            
+            checkerUsers.forEach(user => {
+                const item = document.createElement('div'); item.className = 'card-stats'; item.style.marginBottom = '10px';
+                item.innerHTML = `
+                    <div style="display:flex; align-items:center; margin-bottom:10px; border-bottom: 1px solid #303f50; padding-bottom: 10px;">
+                        <img src="${user.avatar}" class="avatar-small" style="margin-right:12px;">
+                        <div style="flex-grow:1; overflow:hidden;">
+                            <div style="font-weight:bold; font-size:16px; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">${user.name}</div>
+                            <div style="font-size:12px; color:#7f91a4;">ID: ${user.id}</div>
+                        </div>
+                        <button class="sq-btn" style="background-color:#242f3d; width:32px; height:32px; font-size:14px; flex-shrink:0;" onclick="deleteUser('${user.id}')">❌</button>
+                    </div>
+                    <div class="stat-row"><span>Часов в CS:</span> <span class="stat-value">${user.hours}</span></div>
+                    <div class="stat-row"><span>Инвентарь CS2:</span> <span class="stat-value">${colorizeInv(user.inv)}</span></div>
+                    <button class="sq-btn" style="width:100%; margin-top:10px; background-color:#242f3d; color:#4CAF50; font-weight:bold;" onclick="approveChecker('${user.id}', this)">✅ Добавить в базу</button>
+                `;
+                container.appendChild(item);
+            });
+        }
 
         function handleTradebanChange() {
             const val = document.getElementById('tradeban-select').value;
@@ -454,10 +537,19 @@
             return Math.floor(new Date(targetYear, m - 1, d, h, min).getTime() / 1000);
         }
 
-        function saveBanExact() { const unix = getUnixFromInputs('ban'); if(!unix) return showToast("Укажи время!"); saveTradebanState('ban_exact', unix); }
-        function saveBanApprox() { const days = parseInt(document.getElementById('ban-days').value) || 0; saveTradebanState('ban_approx', Math.floor(Date.now() / 1000) + (days * 86400)); }
+        function saveBanExact() { 
+            const unix = getUnixFromInputs('ban'); if(!unix) return showToast("Укажи время!"); 
+            setButtonLoading('btn-save-exact', true, '💾');
+            saveTradebanState('ban_exact', unix); 
+        }
+        function saveBanApprox() { 
+            const days = parseInt(document.getElementById('ban-days').value) || 0; 
+            setButtonLoading('btn-save-approx', true, '💾');
+            saveTradebanState('ban_approx', Math.floor(Date.now() / 1000) + (days * 86400)); 
+        }
         function saveSnat() {
             const unix = getUnixFromInputs('snat'); if(!unix) return showToast("Укажи время!");
+            setButtonLoading('btn-save-snat', true, '💾');
             saveTradebanState(document.querySelector('input[name="snat_type"]:checked').value, unix + 7 * 86400);
         }
 
@@ -478,18 +570,18 @@
             document.getElementById(`${prefix}-time`).value = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
         }
 
-        // ФИКС ЧЕРНОГО ЭКРАНА (Спрятал чекер из переключения окон)
+        // ПРАВИЛЬНОЕ ПЕРЕКЛЮЧЕНИЕ ОКОН (без багов черного экрана)
         function switchView(id) {
-            const views = ['list-view', 'detail-view', 'settings-view'];
-            views.forEach(v => {
+            ['list-view', 'detail-view', 'settings-view', 'checker-view'].forEach(v => {
                 const el = document.getElementById(v);
-                if (el) el.classList.remove('active-view');
+                if(el) el.classList.remove('active-view');
             });
             const target = document.getElementById(id);
-            if (target) target.classList.add('active-view');
+            if(target) target.classList.add('active-view');
+            
+            if (id === 'checker-view') renderChecker();
             if (id === 'list-view') filterList();
         }
-        
         function showList() { switchView('list-view'); currentUser = null; document.getElementById('new-user-input').value = ""; }
         function openSettings() { switchView('settings-view'); }
 
@@ -563,7 +655,8 @@
                 if (passed) {
                     sendSilentCommand({ action: "delete", steam_id: idToDelete });
                     usersData = usersData.filter(u => u.id !== idToDelete);
-                    filterList(); if (!targetId) showList();
+                    if (document.getElementById('checker-view').classList.contains('active-view')) renderChecker();
+                    else { filterList(); if (!targetId) showList(); }
                     showToast("Пользователь удален!");
                 }
             });

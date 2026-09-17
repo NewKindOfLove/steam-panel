@@ -111,7 +111,8 @@ async def sync_to_cloud():
                         "added_date": u[12], "is_checker": u[13], "log": u[14]
                     })
         
-        json_str = json.dumps(users_list)
+        # СЖАТИЕ JSON ДЛЯ БЫСТРОЙ ЗАГРУЗКИ ПАНЕЛИ
+        json_str = json.dumps(users_list, separators=(',', ':'))
         chunks = [json_str[i:i+4000] for i in range(0, len(json_str), 4000)]
         content = json.dumps([{"tag": "p", "children": chunks if chunks else ["[]"]}])
         await telegraph_request("editPage", access_token=TG_TOKEN, path=TG_DB, title="DB", content=content)
@@ -279,6 +280,7 @@ async def get_cs_hours(session, steam_id):
     except: pass
     return "0 ч."
 
+# --- ИДЕАЛЬНЫЙ РАБОЧИЙ ПАРСЕР ИНВЕНТАРЯ ---
 async def get_inventory_cs2(session, steam_id):
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
@@ -289,6 +291,7 @@ async def get_inventory_cs2(session, steam_id):
     wok_key = "wok_eu68v0uqpZuBa56w8YWlVN57JcWcC8TO"
     wok_headers = {"Authorization": f"Bearer {wok_key}"}
 
+    # 1. WOK API (Самый надежный путь)
     try:
         url = "https://woksteamapi.com/v1/inventory"
         params = {"steam_id": steam_id, "game": "cs2"}
@@ -307,6 +310,7 @@ async def get_inventory_cs2(session, steam_id):
     except:
         pass
 
+    # 2. Прямая API Steam (Количество)
     if items_count is None:
         try:
             steam_url = f"https://steamcommunity.com/inventory/{steam_id}/730/2?count=1"
@@ -318,6 +322,7 @@ async def get_inventory_cs2(session, steam_id):
                     if items_count == 0: return "$0.00 (0 шт.)"
         except: pass
 
+    # 3. CSGOBackpack (Резерв)
     if not price_str and items_count:
         try:
             async with session.get(f"https://csgobackpack.net/api/GetInventoryValue/?id={steam_id}", headers=headers, timeout=5) as r:
@@ -441,11 +446,12 @@ async def main():
     await sync_to_cloud()
     
     scheduler.add_job(poll_commands, "interval", seconds=3, max_instances=1)
-    scheduler.add_job(check_statuses, "interval", seconds=30)
+    
+    # СНИЗИЛ НАГРУЗКУ ПАРСЕРА - ПРОВЕРКА РАЗ В МИНУТУ!
+    scheduler.add_job(check_statuses, "interval", seconds=60)
     scheduler.add_job(check_timers, "interval", minutes=2)
     scheduler.start()
     
-    # --- УМНЫЙ СТАТУС БОТА ---
     status_text_online = "<b>СТАТУС БОТА:</b> 🟢 РАБОТАЕТ"
     try:
         async with aiosqlite.connect(DB_NAME) as db:
@@ -472,7 +478,6 @@ async def main():
     try:
         await dp.start_polling(bot)
     finally:
-        # --- СМЕНА СТАТУСА НА ОТКЛЮЧЕН ---
         status_text_offline = "<b>СТАТУС БОТА:</b> 🔴 ОТКЛЮЧЕН"
         try:
             async with aiosqlite.connect(DB_NAME) as db:

@@ -27,7 +27,7 @@
         .bg-away { background-color: #FFC107; display: block; }
         
         .user-info-short { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; overflow: hidden; margin-right: 25px;} 
-        .user-name-text { font-size: 15px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .user-name-text { font-size: 15px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; }
         .user-inv-text { font-size: 12px; font-weight: bold; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         
         .bell-icon { font-size: 16px; padding: 5px; cursor: pointer; position: absolute; top: 4px; right: 4px; }
@@ -42,9 +42,12 @@
         .clickable-id { color: #64b5f6; cursor: pointer; text-decoration: underline; }
         .clickable-id:active { opacity: 0.7; }
         
-        /* КЛИКАБЕЛЬНЫЙ ЛОГ */
         .clickable-log { color: #888888; font-size: 10px; font-weight: normal; margin-left: 4px; cursor: pointer; padding: 2px 4px; border-radius: 4px; transition: 0.2s; }
         .clickable-log:active { background-color: #333333; color: #ffffff; }
+
+        /* СТИЛЬ ДЛЯ ID ВОЗЛЕ НИКА */
+        .id-badge { color: #888888; font-size: 11px; font-weight: normal; margin-left: 6px; cursor: pointer; padding: 2px 4px; border-radius: 4px; transition: 0.2s; background-color: #151515; border: 1px solid #333333;}
+        .id-badge:active { background-color: #333333; color: #ffffff; }
 
         .card-stats { background-color: #1e1e1e; border: 1px solid #2a2a2a; padding: 15px; border-radius: 10px; margin-bottom: 15px; position: relative;}
         .stat-row { display: flex; justify-content: space-between; margin-bottom: 8px; align-items: center;} .stat-row:last-child { margin-bottom: 0; } .stat-value { font-weight: bold; text-align:right;}
@@ -60,6 +63,7 @@
         .param-radios { font-size:12px; font-weight:bold; display: flex; gap: 10px; align-items: center;}
         .param-radios label { cursor:pointer; display: flex; align-items: center; gap: 4px;}
         
+        .param-inputs-wrap { display:flex; justify-content:flex-start; gap:8px; align-items:flex-end; }
         .input-group { display:flex; flex-direction:column; align-items:center; }
         .input-label { font-size:10px; color:#888888; margin-bottom:4px; font-weight: bold; text-transform: uppercase; }
 
@@ -174,22 +178,18 @@
                         <label><input type="radio" name="ban_type" value="ban_approx" onchange="toggleBanUI()"> Примерная</label>
                     </div>
                 </div>
-                <div style="display:flex; justify-content:space-between; align-items:flex-end;">
-                    <div style="display:flex; gap: 8px;">
-                        <div class="input-group"><span class="input-label">День</span><select id="ban-day" class="date-sel"></select></div>
-                        <div class="input-group"><span class="input-label">Месяц</span><select id="ban-month" class="date-sel"></select></div>
-                        <div class="input-group" style="margin-left: 5px;"><span class="input-label">Время</span><input type="time" id="ban-time" class="snat-input" step="60" style="width: 55px;"></div>
-                    </div>
-                    <button id="btn-save-exact" class="sq-btn btn-secondary" style="width: 32px; height: 32px; font-size: 14px; margin-bottom: 1px;" onclick="saveBanExact()">💾</button>
+                <div class="param-inputs-wrap" id="ban-exact-inputs">
+                    <div class="input-group"><span class="input-label">День</span><select id="ban-day" class="date-sel"></select></div>
+                    <div class="input-group"><span class="input-label">Месяц</span><select id="ban-month" class="date-sel"></select></div>
+                    <div class="input-group" style="margin-left: 5px;"><span class="input-label">Время</span><input type="time" id="ban-time" class="snat-input" step="60" style="width: 55px;"></div>
+                    <button id="btn-save-exact" class="sq-btn btn-secondary" style="width: 32px; height: 32px; font-size: 14px; margin-bottom: 1px; margin-left:auto;" onclick="saveBanExact()">💾</button>
                 </div>
-                
-                <div id="ban-approx-inputs" style="display:none; justify-content:space-between; align-items:flex-end;">
+                <div class="param-inputs-wrap" id="ban-approx-inputs" style="display:none;">
                     <div class="input-group"><span class="input-label">Дней</span><select id="ban-days" class="date-sel" style="width: 60px;"></select></div>
-                    <button id="btn-save-approx" class="sq-btn btn-secondary" style="width: 32px; height: 32px; font-size: 14px; margin-bottom: 1px;" onclick="saveBanApprox()">💾</button>
+                    <button id="btn-save-approx" class="sq-btn btn-secondary" style="width: 32px; height: 32px; font-size: 14px; margin-bottom: 1px; margin-left:auto;" onclick="saveBanApprox()">💾</button>
                 </div>
             </div>
 
-            <!-- ИДЕАЛЬНЫЙ ДИЗАЙН ПАРАМЕТРОВ СНЯТ + ЛОГ РЯДОМ С СОХРАНЕНИЕМ -->
             <div id="snat-ui" class="param-box">
                 <div class="param-header">
                     <span class="param-title">Время, когда тип был снят:</span>
@@ -199,16 +199,12 @@
                         <label style="color: #F44336;"><input type="radio" name="snat_type" value="snat_vac"> ВАК</label>
                     </div>
                 </div>
-                <div style="display:flex; justify-content:space-between; align-items:flex-end;">
-                    <div style="display:flex; gap: 8px;">
-                        <div class="input-group"><span class="input-label">День</span><select id="snat-day" class="date-sel"></select></div>
-                        <div class="input-group"><span class="input-label">Месяц</span><select id="snat-month" class="date-sel"></select></div>
-                        <div class="input-group"><span class="input-label">Время</span><input type="time" id="snat-time" class="snat-input" step="60" style="width: 55px;"></div>
-                    </div>
-                    <div style="display:flex; gap: 8px; align-items:flex-end;">
-                        <div class="input-group"><span class="input-label">№ Лога</span><input type="text" id="snat-log" class="snat-input" maxlength="5" pattern="\d*" placeholder="-----" style="width: 55px; font-size: 12px;"></div>
-                        <button id="btn-save-snat" class="sq-btn btn-secondary" style="width: 32px; height: 32px; font-size: 14px; margin-bottom: 1px;" onclick="saveSnat()">💾</button>
-                    </div>
+                <div class="param-inputs-wrap">
+                    <div class="input-group"><span class="input-label">День</span><select id="snat-day" class="date-sel"></select></div>
+                    <div class="input-group"><span class="input-label">Месяц</span><select id="snat-month" class="date-sel"></select></div>
+                    <div class="input-group"><span class="input-label">Время</span><input type="time" id="snat-time" class="snat-input" step="60" style="width: 55px;"></div>
+                    <div class="input-group"><span class="input-label">№ Лога</span><input type="text" id="snat-log" class="snat-input" maxlength="5" pattern="\d*" placeholder="-----" style="width: 55px; font-size: 12px;"></div>
+                    <button id="btn-save-snat" class="sq-btn btn-secondary" style="width: 32px; height: 32px; font-size: 14px; margin-bottom: 1px; margin-left:auto;" onclick="saveSnat()">💾</button>
                 </div>
             </div>
         </div>
@@ -258,7 +254,7 @@
         
         let currentPage = 1;
         const USERS_PER_PAGE = 10;
-        let isCommandPending = false; // БЛОКИРУЕМ ФОНОВЫЕ ОБНОВЛЕНИЯ ПРИ СОХРАНЕНИИ
+        let isCommandPending = false; 
         
         let showBells = localStorage.getItem('showBells') !== 'false';
         document.getElementById('toggle-bells').checked = showBells;
@@ -308,11 +304,20 @@
             });
         }
         
-        // ФУНКЦИЯ КОПИРОВАНИЯ ЛОГА
         function copyLog(event, text) {
             event.stopPropagation();
             navigator.clipboard.writeText(text).then(() => {
                 showToast("Номер лога скопирован! ✅", "success");
+            }).catch(err => {
+                showToast("Ошибка копирования ❌", "error");
+            });
+        }
+        
+        // КЛИК НА ID ПРЯМО В СПИСКЕ
+        function copyIdFromList(event, text) {
+            event.stopPropagation(); // Чтобы карточка не открывалась
+            navigator.clipboard.writeText(text).then(() => {
+                showToast("ID скопирован! ✅", "success");
             }).catch(err => {
                 showToast("Ошибка копирования ❌", "error");
             });
@@ -335,7 +340,6 @@
         }
 
         async function fetchLiveDB(manual = false) {
-            // ЕСЛИ ИДЕТ СОХРАНЕНИЕ ПАРАМЕТРОВ - НЕ КАЧАЕМ БАЗУ, ЧТОБЫ НЕ СБИТЬ КЭШ!
             if (!DB_PATH || isEditing || isCommandPending) return; 
             
             try {
@@ -354,7 +358,7 @@
                 document.getElementById('new-user-input').placeholder = `ID, LINK OR USERLINK (${baseCount})`;
 
                 if(document.getElementById('list-view').classList.contains('active-view')) {
-                    filterList(false);
+                    filterList(false); 
                 } else if (document.getElementById('checker-view').classList.contains('active-view')) {
                     renderChecker();
                 } else if (currentUser) {
@@ -386,7 +390,7 @@
         }
 
         async function sendSilentCommand(cmdObj, timeoutMs = 3000) {
-            isCommandPending = true; // БЛОКИРУЕМ ФОНОВЫЕ ОБНОВЛЕНИЯ!
+            isCommandPending = true; 
             
             try {
                 const r = await fetch(`https://api.telegra.ph/getPage/${CMD_PATH}?return_content=true&_=${Date.now()}`);
@@ -412,7 +416,7 @@
                 await fetch(`https://api.telegra.ph/editPage/${CMD_PATH}`, { method: "POST", body: formData });
                 
                 setTimeout(() => {
-                    isCommandPending = false; // РАЗБЛОКИРУЕМ
+                    isCommandPending = false; 
                     fetchLiveDB(false);
                     resetAllButtons();
                 }, timeoutMs);
@@ -455,7 +459,6 @@
                 let tbText = "";
                 let timerHtml = user.tb_time ? `<span style="color:#888888; font-weight:normal; font-size:10px;">(⏳${formatTimeLeft(user.tb_time)})</span>` : "";
                 
-                // КЛИКАБЕЛЬНЫЙ НОМЕР ЛОГА
                 let logHtml = (showLogs && user.log && user.tb_status.startsWith('snat')) ? `<span class="clickable-log" onclick="copyLog(event, '${user.log}')">#${user.log}</span>` : "";
 
                 if (user.tb_status === "ban_exact" || user.tb_status === "ban_approx") tbText = `<div class="tb-status-text"><span style="color: #FF9800;">⏳ Трейдбан</span> ${timerHtml}</div>`;
@@ -465,13 +468,17 @@
                 else if (user.tb_status === "snat_vac") tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#F44336;">🛑 ВАК</span> ${timerHtml}${logHtml}</div>`;
                 else if (user.tb_status === "unbanned") tbText = `<div class="tb-status-text" style="color: #4CAF50; font-weight: 800;">💸 Разбанился 💸</div>`;
 
+                // ИМЯ + КОПИРУЕМЫЙ ID64
                 item.innerHTML = `
                     <div class="avatar-container" onclick="showDetail('${user.id}')">
                         <img class="avatar-small" src="${user.avatar || 'https://steamuserimages-a.akamaihd.net/ugc/885384897182110030/F095539864AC9E94AE5236E04C8CA7C2725BCEEA/'}">
                         <div class="status-badge ${getStatusClass(user)}"></div>
                     </div>
                     <div class="user-info-short" onclick="showDetail('${user.id}')">
-                        <div class="user-name-text">${user.name}</div>
+                        <div class="user-name-text">
+                            ${user.name} 
+                            <span class="id-badge" onclick="copyIdFromList(event, '${user.id}')">(${user.id})</span>
+                        </div>
                         <div class="user-inv-text">Инв: ${colorizeInv(user.inv)}</div>
                     </div>
                     ${tbText}
@@ -599,7 +606,7 @@
 
             setButtonLoading('btn-add-user', true, '➕');
             showToast("Добавляю... ⏳", "info");
-            sendSilentCommand({ action: "add_user", url: input }, 6000);
+            sendSilentCommand({ action: "add_user", url: input }, 8000);
             document.getElementById('new-user-input').value = "";
             document.getElementById('new-user-input').blur();
         }
@@ -607,15 +614,24 @@
         document.getElementById("new-user-input").addEventListener("input", () => filterList(true));
         document.getElementById("new-user-input").addEventListener("keydown", e => { if (e.key === "Enter") addUserFromInput(); });
 
+        // ЧЕКЕР С ОПТИМИСТИЧНЫМ ДОБАВЛЕНИЕМ
         function runChecker() {
             const input = document.getElementById('checker-input').value.trim();
             if (!input) return;
             const isSteam = input.includes("steamcommunity.com") || /^\d{17}$/.test(input);
             if (!isSteam) { showToast("❌ Введи Steam ссылку или ID64!", "error"); return; }
             
+            let checkId = input;
+            if (input.includes("steamcommunity.com/profiles/")) checkId = input.split("profiles/")[1].replace('/', '');
+            else if (input.includes("steamcommunity.com/id/")) checkId = input.split("id/")[1].replace('/', '');
+
+            // Мгновенно отрисовываем карточку с загрузкой в чекере
+            usersData.unshift({ id: `chk_${checkId}`, name: "Загрузка...", avatar: "", url: input, status: 0, hours: "...", inv: "⏳ Сканирую...", tb_status: "none", notif: 0, is_checker: 1 });
+            renderChecker();
+
             setButtonLoading('btn-checker-search', true, '🔍');
-            showToast("Сканирую CS2 (≈3 сек)...", "info");
-            sendSilentCommand({ action: "checker_scan", url: input }, 6000);
+            showToast("Сканирую CS2 (≈5-8 сек)...", "info");
+            sendSilentCommand({ action: "checker_scan", url: input }, 8000);
             
             document.getElementById('checker-input').blur();
         }
@@ -639,12 +655,17 @@
             
             checkerUsers.forEach(user => {
                 const item = document.createElement('div'); item.className = 'card-stats'; item.style.marginBottom = '10px';
+                
+                let realId = user.id.replace('chk_', '');
+                
                 item.innerHTML = `
                     <div style="display:flex; align-items:center; margin-bottom:10px; border-bottom: 1px solid #303f50; padding-bottom: 10px;">
                         <img src="${user.avatar}" class="avatar-small" style="margin-right:12px;">
                         <div style="flex-grow:1; overflow:hidden;">
-                            <div style="font-weight:bold; font-size:16px; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">${user.name}</div>
-                            <div style="font-size:12px; color:#7f91a4;">ID: ${user.id}</div>
+                            <div style="font-weight:bold; font-size:16px; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">
+                                ${user.name}
+                                <span class="id-badge" onclick="copyIdFromList(event, '${realId}')">(${realId})</span>
+                            </div>
                         </div>
                         <button class="sq-btn" style="background-color:#242f3d; width:32px; height:32px; font-size:14px; flex-shrink:0;" onclick="deleteUser('${user.id}')">❌</button>
                     </div>
@@ -721,7 +742,7 @@
         document.getElementById("snat-time").addEventListener("keydown", e => { if (e.key === "Enter") { saveSnat(); document.getElementById("snat-time").blur();} });
         document.getElementById("snat-log").addEventListener("keydown", e => { if (e.key === "Enter") { saveSnat(); document.getElementById("snat-log").blur();} });
 
-        // ОПТИМИСТИЧНОЕ СОХРАНЕНИЕ ПАРАМЕТРОВ (БЕЗ СБРОСА)
+        // ОПТИМИСТИЧНОЕ СОХРАНЕНИЕ
         function saveTradebanState(status, timeStamp, logNum = "") {
             if (!currentUser) return;
             
@@ -739,8 +760,8 @@
             document.getElementById('ban-ui').style.display = 'none'; 
             document.getElementById('snat-ui').style.display = 'none';
             
-            showDetail(currentUser.id, true); // Обновляем статусы в досье без закрытия
-            filterList(false); // Обновляем главный список (сохраняя страницу)
+            showDetail(currentUser.id, true); 
+            filterList(false); 
             
             sendSilentCommand({ action: "update_tradeban", steam_id: currentUser.id, tb_status: status, tb_time: timeStamp, log: logNum }, 4000);
             showToast("Параметр сохранен ✅", "success");
@@ -839,7 +860,7 @@
             if (!idToDelete) return;
             tg.showConfirm("Удалить пользователя из базы?", passed => {
                 if (passed) {
-                    deletedUserIds.add(idToDelete); // БЛОКИРУЕМ ЗОМБИ
+                    deletedUserIds.add(idToDelete); 
                     usersData = usersData.filter(u => u.id !== idToDelete);
                     filterList(true); if (!targetId) showList();
                     sendSilentCommand({ action: "delete", steam_id: idToDelete }, 3000);

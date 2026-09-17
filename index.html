@@ -6,16 +6,15 @@
     <title>Steam Panel</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        /* ЖЕСТКИЙ ЧЕРНЫЙ ФОН БЕЗ ТЕЛЕГРАМОВСКОЙ СИНЕВЫ */
-        body { background-color: #0f0f0f; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; }
+        /* Увеличили минимальную ширину в 1.5 раза для ПК */
+        body { background-color: #0f0f0f; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0 auto; padding: 0; min-width: 500px; max-width: 800px; }
         .container { padding: 15px; display: none; } .active-view { display: block; }
         
-        .top-bar { display: flex; gap: 10px; margin-bottom: 15px; }
-        /* Инпуты и карточки чуть светлее фона */
+        .top-bar { display: flex; gap: 8px; margin-bottom: 15px; }
         .top-bar input { flex-grow: 1; padding: 10px; border-radius: 8px; background-color: #1e1e1e; color: #ffffff; border: 1px solid #333333; outline: none; font-size: 14px; }
         
-        /* ВСЕ КНОПКИ СТРОГО ТЕМНЫЕ */
-        .sq-btn { width: 42px; height: 42px; border-radius: 8px; border: 1px solid #333333; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; cursor: pointer; background-color: #252525; color: #ffffff; transition: 0.2s; }
+        /* КНОПКИ */
+        .sq-btn { width: 42px; height: 42px; border-radius: 8px; border: 1px solid #333333; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; cursor: pointer; background-color: #252525; color: #ffffff; transition: 0.2s; flex-shrink: 0;}
         .sq-btn:active { opacity: 0.7; transform: scale(0.95); background-color: #333333; } 
         .btn-secondary { background-color: #252525; color: #ffffff; } 
         
@@ -34,7 +33,6 @@
         .user-inv-text { font-size: 12px; font-weight: bold; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         
         .bell-icon { font-size: 16px; padding: 5px; cursor: pointer; position: absolute; top: 4px; right: 4px; }
-        
         .tb-status-text { position: absolute; bottom: 8px; right: 12px; font-size: 11px; font-weight: bold; letter-spacing: 0.3px; }
 
         .nav-bar { display: flex; justify-content: space-between; margin-bottom: 20px; }
@@ -72,9 +70,12 @@
         .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
         input:checked + .slider { background-color: #4CAF50; } input:checked + .slider:before { transform: translateX(16px); }
         
-        /* ИДЕАЛЬНЫЙ ТЕМНЫЙ ТОСТ БЕЗ ПРОЗРАЧНОСТИ */
-        #toast { visibility: hidden; min-width: 200px; background-color: #1e1e1e; color: #ffffff; text-align: center; border-radius: 8px; padding: 12px; position: fixed; z-index: 1000; left: 50%; bottom: 20px; transform: translateX(-50%); font-size: 14px; opacity: 1; transition: bottom 0.3s; border: 1px solid #333333; box-shadow: 0 5px 15px rgba(0,0,0,0.8); font-weight: bold;}
+        /* УМНЫЕ ЦВЕТНЫЕ ТОСТЫ */
+        #toast { visibility: hidden; min-width: 200px; background-color: #1e1e1e; color: #ffffff; border-left: 5px solid #5288c1; text-align: left; border-radius: 6px; padding: 12px 15px; position: fixed; z-index: 1000; left: 50%; bottom: 20px; transform: translateX(-50%); font-size: 14px; opacity: 1; transition: bottom 0.3s; box-shadow: 0 5px 15px rgba(0,0,0,0.8); font-weight: bold;}
         #toast.show { visibility: visible; bottom: 30px; }
+        #toast.success { border-left-color: #4CAF50; }
+        #toast.warning { border-left-color: #FFC107; }
+        #toast.error { border-left-color: #F44336; }
     </style>
 </head>
 <body>
@@ -84,6 +85,7 @@
     <div class="container active-view" id="list-view">
         <div class="top-bar">
             <input type="text" id="new-user-input" placeholder="Поиск (Имя или ID)">
+            <button id="btn-add-user" class="sq-btn btn-secondary" onclick="addUserFromInput()">➕</button>
             <button id="btn-global-refresh" class="sq-btn btn-secondary" onclick="manualRefresh()">⟳</button>
         </div>
         <div style="display:flex; justify-content:space-between; margin-bottom: 15px; gap: 8px;">
@@ -92,13 +94,13 @@
                 <option value="inv_desc">По цене инвентаря ($)</option>
                 <option value="tb_asc">По разбану ⏳</option>
             </select>
-            <button class="sq-btn btn-secondary" style="width:auto; padding:0 12px; font-size:13px; font-weight:bold; color: #888888;" onclick="showToast('🛠 В разработке...')">🔍 Чекер</button>
+            <button class="sq-btn btn-secondary" style="width:auto; padding:0 12px; font-size:13px; font-weight:bold; color: #888888;" onclick="showToast('🛠 В разработке...', 'info')">🔍 Чекер</button>
             <button class="sq-btn btn-secondary" style="font-size:16px;" onclick="switchView('settings-view')">⚙️</button>
         </div>
         <div class="user-list" id="users-container">Ожидание данных...</div>
     </div>
 
-    <!-- 3. КАРТОЧКА ЮЗЕРА -->
+    <!-- 2. КАРТОЧКА ЮЗЕРА -->
     <div class="container" id="detail-view">
         <div class="nav-bar">
             <button class="sq-btn btn-secondary" onclick="showList()">◀</button>
@@ -170,12 +172,15 @@
         </div>
 
         <div>
-            <label style="display:block; margin-bottom:5px; font-weight:bold;">Примечание: <span style="font-size:12px; font-weight:normal; color: #888888;">(Enter для сохр.)</span></label>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                <label style="font-weight:bold;">Примечание: <span style="font-size:12px; font-weight:normal; color: #888888;">(Enter для сохр.)</span></label>
+                <button id="btn-save-note" class="sq-btn btn-secondary" style="width: 26px; height: 26px; font-size: 14px; border-radius: 6px;" onclick="saveNote()">💾</button>
+            </div>
             <textarea id="detail-note" placeholder="Введи заметку..."></textarea>
         </div>
     </div>
 
-    <!-- 4. НАСТРОЙКИ -->
+    <!-- 3. НАСТРОЙКИ -->
     <div class="container" id="settings-view">
         <div class="nav-bar">
             <button class="sq-btn btn-secondary" onclick="showList()">◀</button>
@@ -226,17 +231,19 @@
         const DB_PATH = urlParams.get('d');
         const CMD_PATH = urlParams.get('c');
 
-        function showToast(msg) {
+        // УМНЫЕ ЦВЕТНЫЕ ТОСТЫ
+        function showToast(msg, type = "info") {
             const toast = document.getElementById("toast");
-            toast.innerText = msg; toast.className = "show";
-            setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 2500);
+            toast.innerText = msg; 
+            toast.className = `show ${type}`;
+            setTimeout(() => { toast.className = toast.className.replace("show", "").trim(); }, 2500);
         }
         
         function copyId(text) {
             navigator.clipboard.writeText(text).then(() => {
-                showToast("ID скопирован! ✅");
+                showToast("ID скопирован! ✅", "success");
             }).catch(err => {
-                showToast("Ошибка копирования ❌");
+                showToast("Ошибка копирования ❌", "error");
             });
         }
         
@@ -247,10 +254,12 @@
 
         function resetAllButtons() {
             setButtonLoading('btn-global-refresh', false, '⟳');
+            setButtonLoading('btn-add-user', false, '➕');
             setButtonLoading('btn-detail-refresh', false, '⟳');
             setButtonLoading('btn-save-exact', false, '💾');
             setButtonLoading('btn-save-approx', false, '💾');
             setButtonLoading('btn-save-snat', false, '💾');
+            setButtonLoading('btn-save-note', false, '💾');
         }
 
         async function fetchLiveDB(manual = false) {
@@ -276,7 +285,7 @@
                         document.getElementById('detail-inv').innerHTML = colorizeInv(upUser.inv);
                     } else { showList(); }
                 }
-                if (manual) showToast("Данные обновлены ✅");
+                if (manual) showToast("Данные обновлены ✅", "success");
             } catch(e) {}
         }
 
@@ -286,18 +295,16 @@
         function manualRefresh() { 
             document.getElementById('new-user-input').value = ""; 
             setButtonLoading('btn-global-refresh', true, '⟳');
-            sendSilentCommand({ action: "force_update" });
+            sendSilentCommand({ action: "force_update" }, 4000);
         }
         
         function refreshCurrentUser() {
             if (!currentUser) return;
             setButtonLoading('btn-detail-refresh', true, '⟳');
-            sendSilentCommand({ action: "force_update_single", steam_id: currentUser.id });
+            sendSilentCommand({ action: "force_update_single", steam_id: currentUser.id }, 4000);
         }
 
-        async function sendSilentCommand(cmdObj, callback = null) {
-            showToast("Обработка...");
-            
+        async function sendSilentCommand(cmdObj, timeoutMs = 3000) {
             try {
                 const r = await fetch(`https://api.telegra.ph/getPage/${CMD_PATH}?return_content=true&_=${Date.now()}`);
                 const data = await r.json();
@@ -322,14 +329,12 @@
                 await fetch(`https://api.telegra.ph/editPage/${CMD_PATH}`, { method: "POST", body: formData });
                 
                 setTimeout(() => {
-                    fetchLiveDB(true);
+                    fetchLiveDB(false);
                     resetAllButtons();
-                    if(callback) callback();
-                }, 3000);
+                }, timeoutMs);
             } catch(e) { 
-                showToast("Ошибка сети"); 
+                showToast("Ошибка сети ❌", "error"); 
                 resetAllButtons();
-                if(callback) callback();
             }
         }
 
@@ -339,6 +344,7 @@
         function colorizeInv(text) {
             if (!text || text === "-") return '<span style="color:#888888;">Скрыто 🔒</span>';
             if (text === "Скрыто 🔒") return '<span style="color:#888888;">Скрыто 🔒</span>';
+            if (text === "⏳ Сканирую...") return '<span style="color:#FFC107;">⏳ Сканирую...</span>';
             let formatted = text.replace(/\((.*?)\)/, '<span style="font-size: 10px; color: #888888;">($1)</span>');
             if (formatted.includes('$')) return `<span style="color: #4CAF50;">${formatted}</span>`;
             return formatted;
@@ -360,7 +366,6 @@
                 let tbText = "";
                 let timerHtml = user.tb_time ? `<span style="color:#888888; font-weight:normal; font-size:10px;">(⏳${formatTimeLeft(user.tb_time)})</span>` : "";
 
-                // СТАТУСЫ С ИДЕАЛЬНЫМИ ЦВЕТАМИ
                 if (user.tb_status === "ban_exact" || user.tb_status === "ban_approx") tbText = `<div class="tb-status-text"><span style="color: #FF9800;">⏳ Трейдбан</span> ${timerHtml}</div>`;
                 else if (user.tb_status === "ready") tbText = `<div class="tb-status-text" style="color: #a8b5c2;">🔓 Можно снимать</div>`;
                 else if (user.tb_status === "snat") tbText = `<div class="tb-status-text"><span style="color: #4CAF50;">✅ Снят</span> ${timerHtml}</div>`;
@@ -410,19 +415,36 @@
             renderList(filtered);
         }
 
-        document.getElementById("new-user-input").addEventListener("input", filterList);
-        document.getElementById("new-user-input").addEventListener("keydown", e => { 
-            if (e.key === "Enter") {
-                const input = document.getElementById('new-user-input').value.trim();
-                if (!input) return;
-                const isSteam = input.includes("steamcommunity.com") || /^\d{17}$/.test(input);
-                if (!isSteam) { showToast("❌ Введи Steam ссылку или ID64!"); return; }
-                sendSilentCommand({ action: "add_user", url: input });
-                showToast("Добавляю... Юзер скоро появится в списке."); 
-                document.getElementById('new-user-input').value = "";
-                document.getElementById('new-user-input').blur();
+        // ЛОГИКА ДОБАВЛЕНИЯ ПОЛЬЗОВАТЕЛЯ С КНОПКИ "➕" И ENTER
+        function addUserFromInput() {
+            const input = document.getElementById('new-user-input').value.trim();
+            if (!input) return;
+            const isSteam = input.includes("steamcommunity.com") || /^\d{17}$/.test(input);
+            if (!isSteam) { showToast("❌ Введи Steam ссылку или ID64!", "error"); return; }
+            
+            // Защита от дубликатов прямо в панели
+            let checkId = input;
+            if (input.includes("steamcommunity.com/profiles/")) checkId = input.split("profiles/")[1].replace('/', '');
+            else if (input.includes("steamcommunity.com/id/")) checkId = input.split("id/")[1].replace('/', '');
+            
+            if (usersData.some(u => u.id === checkId || (u.url && u.url.includes(checkId)))) {
+                showToast("⚠️ Пользователь уже есть в базе!", "warning");
+                return;
             }
-        });
+
+            // Ставим заглушку в интерфейс чтобы было видно сразу
+            usersData.unshift({ id: checkId, name: "Загрузка...", avatar: "", url: input, status: 0, hours: "...", inv: "⏳ Сканирую...", tb_status: "none", notif: 1 });
+            filterList();
+
+            setButtonLoading('btn-add-user', true, '➕');
+            showToast("Добавляю... ⏳", "info");
+            sendSilentCommand({ action: "add_user", url: input }, 6000); // 6 сек на парсинг Питоном
+            document.getElementById('new-user-input').value = "";
+            document.getElementById('new-user-input').blur();
+        }
+
+        document.getElementById("new-user-input").addEventListener("input", filterList);
+        document.getElementById("new-user-input").addEventListener("keydown", e => { if (e.key === "Enter") addUserFromInput(); });
 
         function handleTradebanChange() {
             const val = document.getElementById('tradeban-select').value;
@@ -468,7 +490,7 @@
         }
 
         function saveBanExact() { 
-            const unix = getUnixFromInputs('ban'); if(!unix) return showToast("Укажи время!"); 
+            const unix = getUnixFromInputs('ban'); if(!unix) return showToast("Укажи время!", "error"); 
             setButtonLoading('btn-save-exact', true, '💾');
             saveTradebanState('ban_exact', unix); 
         }
@@ -478,7 +500,7 @@
             saveTradebanState('ban_approx', Math.floor(Date.now() / 1000) + (days * 86400)); 
         }
         function saveSnat() {
-            const unix = getUnixFromInputs('snat'); if(!unix) return showToast("Укажи время!");
+            const unix = getUnixFromInputs('snat'); if(!unix) return showToast("Укажи время!", "error");
             setButtonLoading('btn-save-snat', true, '💾');
             saveTradebanState(document.querySelector('input[name="snat_type"]:checked').value, unix + 7 * 86400);
         }
@@ -489,8 +511,8 @@
         function saveTradebanState(status, timeStamp) {
             if (!currentUser) return;
             currentUser.tb_status = status; currentUser.tb_time = timeStamp;
-            sendSilentCommand({ action: "update_tradeban", steam_id: currentUser.id, tb_status: status, tb_time: timeStamp });
-            showToast("Параметр сохранен ✅");
+            sendSilentCommand({ action: "update_tradeban", steam_id: currentUser.id, tb_status: status, tb_time: timeStamp }, 3000);
+            showToast("Параметр сохранен ✅", "success");
             document.getElementById('ban-ui').style.display = 'none'; document.getElementById('snat-ui').style.display = 'none';
         }
 
@@ -501,7 +523,7 @@
         }
 
         function switchView(id) {
-            ['list-view', 'detail-view', 'settings-view', 'checker-view'].forEach(v => {
+            ['list-view', 'detail-view', 'settings-view'].forEach(v => {
                 const el = document.getElementById(v);
                 if(el) el.classList.remove('active-view');
             });
@@ -555,8 +577,8 @@
         function saveSettings() { 
             showBells = document.getElementById('toggle-bells').checked; localStorage.setItem('showBells', showBells); 
             allNotifs = document.getElementById('toggle-all-notifs').checked; localStorage.setItem('allNotifs', allNotifs);
-            filterList(); sendSilentCommand({ action: "set_all_notifs", value: allNotifs ? 1 : 0 });
-            showToast("Настройки сохранены ✅");
+            filterList(); sendSilentCommand({ action: "set_all_notifs", value: allNotifs ? 1 : 0 }, 3000);
+            showToast("Настройки сохранены ✅", "success");
         }
 
         document.getElementById("detail-note").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveNote(); document.getElementById("detail-note").blur();} });
@@ -564,26 +586,26 @@
         function toggleNotif(event, id) {
             event.stopPropagation();
             let user = usersData.find(u => u.id === id); user.notif = user.notif ? 0 : 1;
-            filterList(); sendSilentCommand({ action: "toggle_notif", steam_id: id });
-            showToast(user.notif ? "Уведомления включены" : "Уведомления отключены");
+            filterList(); sendSilentCommand({ action: "toggle_notif", steam_id: id }, 3000);
+            showToast(user.notif ? "Уведомления включены" : "Уведомления отключены", "info");
         }
 
         function saveNote() {
             if (!currentUser) return;
             currentUser.note = document.getElementById('detail-note').value;
-            sendSilentCommand({ action: "update_note", steam_id: currentUser.id, note: currentUser.note });
-            showToast("Примечание сохранено ✅");
+            setButtonLoading('btn-save-note', true, '💾');
+            sendSilentCommand({ action: "update_note", steam_id: currentUser.id, note: currentUser.note }, 3000);
+            showToast("Примечание сохранено ✅", "success");
         }
 
-        function deleteUser(targetId = null) {
-            const idToDelete = targetId || (currentUser ? currentUser.id : null);
-            if (!idToDelete) return;
+        function deleteUser() {
+            if (!currentUser) return;
             tg.showConfirm("Удалить пользователя из базы?", passed => {
                 if (passed) {
-                    sendSilentCommand({ action: "delete", steam_id: idToDelete });
-                    usersData = usersData.filter(u => u.id !== idToDelete);
-                    filterList(); if (!targetId) showList();
-                    showToast("Пользователь удален!");
+                    sendSilentCommand({ action: "delete", steam_id: currentUser.id }, 3000);
+                    usersData = usersData.filter(u => u.id !== currentUser.id);
+                    filterList(); showList();
+                    showToast("Пользователь удален! ❌", "error");
                 }
             });
         }

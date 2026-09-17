@@ -112,7 +112,6 @@
                 </select>
             </div>
             
-            <!-- ИНДИКАТОР БОТА -->
             <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 4px;">
                 <div id="bot-dot" style="width: 8px; height: 8px; border-radius: 50%; background-color: #F44336; box-shadow: 0 0 6px #F44336; margin-bottom: 3px; transition: 0.3s;"></div>
                 <span style="font-size: 9px; font-weight: bold; color: #7f91a4; line-height: 1;">BOT</span>
@@ -258,8 +257,8 @@
         let usersData = [];
         let currentFilteredData = [];
         
-        // ВОТ ОНО - БЕССМЕРТНОЕ ХРАНИЛИЩЕ УДАЛЕННЫХ ТИПОВ
-        let deletedUserIds = new Set(JSON.parse(localStorage.getItem('deletedUserIds') || '[]'));
+        // УМНЫЙ КЭШ В ОПЕРАТИВКЕ (БОЛЬШЕ НЕ СОХРАНЯЕТСЯ НАВЕЧНО)
+        let pendingDeletes = new Set();
         
         let currentPage = 1;
         const USERS_PER_PAGE = 10;
@@ -377,7 +376,7 @@
                 }
                 
                 let rawData = JSON.parse(jsonStr || "[]");
-                usersData = rawData.filter(u => !deletedUserIds.has(u.id)); // ФИЛЬТРУЕМ ЗОМБИ СРАЗУ
+                usersData = rawData.filter(u => !pendingDeletes.has(u.id)); // Фильтруем свежеудаленных
                 
                 const baseCount = usersData.filter(u => u.is_checker !== 1).length;
                 document.getElementById('new-user-input').placeholder = `ID, LINK OR USERLINK (${baseCount})`;
@@ -778,7 +777,6 @@
         document.getElementById("snat-time").addEventListener("keydown", e => { if (e.key === "Enter") { saveSnat(); document.getElementById("snat-time").blur();} });
         document.getElementById("snat-log").addEventListener("keydown", e => { if (e.key === "Enter") { saveSnat(); document.getElementById("snat-log").blur();} });
 
-        // МГНОВЕННОЕ СОХРАНЕНИЕ 
         function saveTradebanState(status, timeStamp, logNum = "") {
             if (!currentUser) return;
             
@@ -896,8 +894,7 @@
             if (!idToDelete) return;
             tg.showConfirm("Удалить пользователя из базы?", passed => {
                 if (passed) {
-                    deletedUserIds.add(idToDelete); 
-                    localStorage.setItem('deletedUserIds', JSON.stringify([...deletedUserIds])); // СОХРАНЯЕМ В КЭШ
+                    pendingDeletes.add(idToDelete); 
                     usersData = usersData.filter(u => u.id !== idToDelete);
                     filterList(true); if (!targetId) showList();
                     sendSilentCommand({ action: "delete", steam_id: idToDelete }, 3000);

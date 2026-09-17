@@ -111,7 +111,6 @@ async def sync_to_cloud():
                         "added_date": u[12], "is_checker": u[13], "log": u[14]
                     })
         
-        # СЖАТИЕ JSON ДЛЯ БЫСТРОЙ ЗАГРУЗКИ ПАНЕЛИ
         json_str = json.dumps(users_list, separators=(',', ':'))
         chunks = [json_str[i:i+4000] for i in range(0, len(json_str), 4000)]
         content = json.dumps([{"tag": "p", "children": chunks if chunks else ["[]"]}])
@@ -205,6 +204,42 @@ async def poll_commands():
                         await db.execute("UPDATE users SET steam_id = ?, is_checker = 0, added_date = ? WHERE steam_id = ?", (real_id, current_date, steam_id))
                         changed = True
 
+                # --- ЛОГИКА МАССОВОГО ИМПОРТА ---
+                elif action == "add_users_batch":
+                    urls = data.get("urls", [])
+                    added_count = 0
+                    async with aiohttp.ClientSession() as session:
+                        for input_text in urls:
+                            new_steam_id = await resolve_vanity_url(session, input_text)
+                            if not new_steam_id: continue
+                            
+                            # Проверяем, есть ли уже в базе
+                            async with db.execute("SELECT steam_id FROM users WHERE steam_id = ?", (new_steam_id,)) as cursor:
+                                if await cursor.fetchone(): continue
+                            
+                            profile = await get_steam_profile(session, new_steam_id)
+                            if profile:
+                                cs_hours = await get_cs_hours(session, new_steam_id)
+                                inv_val = await get_inventory_cs2(session, new_steam_id)
+                                current_date = datetime.now().strftime("%d.%m.%Y")
+                                
+                                await db.execute("""
+                                    INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0)
+                                """, (new_steam_id, profile.get('personaname', 'User'), profile.get('avatarfull', ''), profile['profileurl'], profile.get('personastate', 0), cs_hours, inv_val, current_date))
+                                changed = True
+                                added_count += 1
+                                
+                                # Обновляем панель каждые 5 типов
+                                if added_count % 5 == 0:
+                                    await db.commit()
+                                    await sync_to_cloud()
+                                
+                                await asyncio.sleep(2.5) # Задержка от бана WOK API
+                                
+                    if added_count > 0:
+                        await send_alert(f"✅ Массовый импорт завершен: добавлено {added_count} пользователей!", parse_mode="HTML")
+
                 elif action == "set_all_notifs":
                     val = '1' if data.get("value") else '0'
                     await db.execute("UPDATE settings SET value = ? WHERE key = 'all_notifs'", (val,))
@@ -280,7 +315,6 @@ async def get_cs_hours(session, steam_id):
     except: pass
     return "0 ч."
 
-# --- ИДЕАЛЬНЫЙ РАБОЧИЙ ПАРСЕР ИНВЕНТАРЯ ---
 async def get_inventory_cs2(session, steam_id):
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
@@ -291,7 +325,6 @@ async def get_inventory_cs2(session, steam_id):
     wok_key = "wok_eu68v0uqpZuBa56w8YWlVN57JcWcC8TO"
     wok_headers = {"Authorization": f"Bearer {wok_key}"}
 
-    # 1. WOK API (Самый надежный путь)
     try:
         url = "https://woksteamapi.com/v1/inventory"
         params = {"steam_id": steam_id, "game": "cs2"}
@@ -310,7 +343,6 @@ async def get_inventory_cs2(session, steam_id):
     except:
         pass
 
-    # 2. Прямая API Steam (Количество)
     if items_count is None:
         try:
             steam_url = f"https://steamcommunity.com/inventory/{steam_id}/730/2?count=1"
@@ -322,7 +354,6 @@ async def get_inventory_cs2(session, steam_id):
                     if items_count == 0: return "$0.00 (0 шт.)"
         except: pass
 
-    # 3. CSGOBackpack (Резерв)
     if not price_str and items_count:
         try:
             async with session.get(f"https://csgobackpack.net/api/GetInventoryValue/?id={steam_id}", headers=headers, timeout=5) as r:
@@ -446,8 +477,6 @@ async def main():
     await sync_to_cloud()
     
     scheduler.add_job(poll_commands, "interval", seconds=3, max_instances=1)
-    
-    # СНИЗИЛ НАГРУЗКУ ПАРСЕРА - ПРОВЕРКА РАЗ В МИНУТУ!
     scheduler.add_job(check_statuses, "interval", seconds=60)
     scheduler.add_job(check_timers, "interval", minutes=2)
     scheduler.start()

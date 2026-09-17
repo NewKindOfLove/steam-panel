@@ -45,8 +45,8 @@
         .clickable-log { color: #888888; font-size: 10px; font-weight: normal; margin-left: 4px; cursor: pointer; padding: 2px 4px; border-radius: 4px; transition: 0.2s; }
         .clickable-log:active { background-color: #333333; color: #ffffff; }
 
-        /* СТИЛЬ ДЛЯ ID ВОЗЛЕ НИКА */
-        .id-badge { color: #888888; font-size: 11px; font-weight: normal; margin-left: 6px; cursor: pointer; padding: 2px 4px; border-radius: 4px; transition: 0.2s; background-color: #151515; border: 1px solid #333333;}
+        /* ИДЕАЛЬНЫЙ ID БЕЗ ФОНА И РАМОК (Как номер лога) */
+        .id-badge { color: #888888; font-size: 11px; font-weight: normal; margin-left: 6px; cursor: pointer; padding: 2px 4px; border-radius: 4px; transition: 0.2s; }
         .id-badge:active { background-color: #333333; color: #ffffff; }
 
         .card-stats { background-color: #1e1e1e; border: 1px solid #2a2a2a; padding: 15px; border-radius: 10px; margin-bottom: 15px; position: relative;}
@@ -313,9 +313,8 @@
             });
         }
         
-        // КЛИК НА ID ПРЯМО В СПИСКЕ
         function copyIdFromList(event, text) {
-            event.stopPropagation(); // Чтобы карточка не открывалась
+            event.stopPropagation(); 
             navigator.clipboard.writeText(text).then(() => {
                 showToast("ID скопирован! ✅", "success");
             }).catch(err => {
@@ -358,7 +357,7 @@
                 document.getElementById('new-user-input').placeholder = `ID, LINK OR USERLINK (${baseCount})`;
 
                 if(document.getElementById('list-view').classList.contains('active-view')) {
-                    filterList(false); 
+                    filterList(false);
                 } else if (document.getElementById('checker-view').classList.contains('active-view')) {
                     renderChecker();
                 } else if (currentUser) {
@@ -468,7 +467,6 @@
                 else if (user.tb_status === "snat_vac") tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#F44336;">🛑 ВАК</span> ${timerHtml}${logHtml}</div>`;
                 else if (user.tb_status === "unbanned") tbText = `<div class="tb-status-text" style="color: #4CAF50; font-weight: 800;">💸 Разбанился 💸</div>`;
 
-                // ИМЯ + КОПИРУЕМЫЙ ID64
                 item.innerHTML = `
                     <div class="avatar-container" onclick="showDetail('${user.id}')">
                         <img class="avatar-small" src="${user.avatar || 'https://steamuserimages-a.akamaihd.net/ugc/885384897182110030/F095539864AC9E94AE5236E04C8CA7C2725BCEEA/'}">
@@ -606,7 +604,7 @@
 
             setButtonLoading('btn-add-user', true, '➕');
             showToast("Добавляю... ⏳", "info");
-            sendSilentCommand({ action: "add_user", url: input }, 8000);
+            sendSilentCommand({ action: "add_user", url: input }, 6000);
             document.getElementById('new-user-input').value = "";
             document.getElementById('new-user-input').blur();
         }
@@ -614,7 +612,6 @@
         document.getElementById("new-user-input").addEventListener("input", () => filterList(true));
         document.getElementById("new-user-input").addEventListener("keydown", e => { if (e.key === "Enter") addUserFromInput(); });
 
-        // ЧЕКЕР С ОПТИМИСТИЧНЫМ ДОБАВЛЕНИЕМ
         function runChecker() {
             const input = document.getElementById('checker-input').value.trim();
             if (!input) return;
@@ -625,7 +622,6 @@
             if (input.includes("steamcommunity.com/profiles/")) checkId = input.split("profiles/")[1].replace('/', '');
             else if (input.includes("steamcommunity.com/id/")) checkId = input.split("id/")[1].replace('/', '');
 
-            // Мгновенно отрисовываем карточку с загрузкой в чекере
             usersData.unshift({ id: `chk_${checkId}`, name: "Загрузка...", avatar: "", url: input, status: 0, hours: "...", inv: "⏳ Сканирую...", tb_status: "none", notif: 0, is_checker: 1 });
             renderChecker();
 
@@ -742,7 +738,6 @@
         document.getElementById("snat-time").addEventListener("keydown", e => { if (e.key === "Enter") { saveSnat(); document.getElementById("snat-time").blur();} });
         document.getElementById("snat-log").addEventListener("keydown", e => { if (e.key === "Enter") { saveSnat(); document.getElementById("snat-log").blur();} });
 
-        // ОПТИМИСТИЧНОЕ СОХРАНЕНИЕ
         function saveTradebanState(status, timeStamp, logNum = "") {
             if (!currentUser) return;
             

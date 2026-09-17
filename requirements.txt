@@ -1,6 +1,3 @@
 aiogram
 google-generativeai
-re
-json
-time
 aiohttp

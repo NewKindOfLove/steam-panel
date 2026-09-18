@@ -148,8 +148,6 @@
 
     <!-- 3. КАРТОЧКА ЮЗЕРА -->
     <div class="container" id="detail-view">
-        
-        <!-- ГАРМОНИЧНЫЙ NAV-BAR СО ВСТРОЕННЫМ ПОЛЕМ ПК -->
         <div class="nav-bar" style="align-items: center; gap: 8px; margin-bottom: 20px;">
             <button class="sq-btn btn-secondary" style="flex-shrink: 0;" onclick="showList()">◀</button>
             
@@ -285,7 +283,9 @@
         let currentUser = null;
         let usersData = [];
         let currentFilteredData = [];
-        let deletedUserIds = new Set(JSON.parse(localStorage.getItem('deletedUserIds') || '[]'));
+        
+        // ВРЕМЕННЫЙ КЭШ УДАЛЕННЫХ: Больше никакой вечной памяти!
+        let temporaryHiddenIds = new Set();
         
         let localCache = JSON.parse(localStorage.getItem('steamLocalCache') || '{}');
         function updateLocalCache(id, key, value) {
@@ -384,7 +384,7 @@
                 }
                 let rawData = JSON.parse(jsonStr || "[]");
                 
-                usersData = rawData.filter(u => !deletedUserIds.has(u.id)).map(u => {
+                usersData = rawData.filter(u => !temporaryHiddenIds.has(u.id)).map(u => {
                     if (localCache[u.id]) {
                         if (localCache[u.id].device !== undefined) u.device = localCache[u.id].device;
                         if (localCache[u.id].note !== undefined) u.note = localCache[u.id].note;
@@ -392,7 +392,7 @@
                     return u;
                 });
 
-                // УВЕЛИЧЕНО ВРЕМЯ ЖИЗНИ ЗАГРУЗКИ ДО 60 СЕК (Чтобы не пропадало до ответа сервера)
+                // УВЕЛИЧЕНО ВРЕМЯ ЖИЗНИ ЗАГРУЗКИ ДО 60 СЕК (Чтобы не пропадало)
                 pendingUsers = pendingUsers.filter(p => (Date.now() - p.timestamp) < 60000);
                 
                 pendingUsers = pendingUsers.filter(p => !usersData.some(u => {
@@ -636,6 +636,8 @@
             const isSteam = input.includes("steamcommunity.com") || /^\d{17}$/.test(input);
             if (!isSteam) { showToast("❌ Введи Steam ссылку или ID64!", "error"); return; }
             
+            temporaryHiddenIds.clear(); // Очищаем временные скрытия при добавлении
+            
             let checkId = input.split('/').pop() || input;
             if (usersData.some(u => u.id === checkId || (u.url && u.url.toLowerCase() === input.toLowerCase()))) { 
                 return showToast("⚠️ Пользователь уже есть в базе!", "warning"); 
@@ -655,6 +657,8 @@
             let toAdd = [];
             for (let line of lines) { let text = line.trim(); if (text) toAdd.push(text); }
             if (toAdd.length === 0) return showToast("Пустой список!", "warning");
+            
+            temporaryHiddenIds.clear(); // Очищаем временные скрытия при импорте
             
             let finalUrls = [];
             for (let url of toAdd) {
@@ -699,6 +703,7 @@
             const isSteam = input.includes("steamcommunity.com") || /^\d{17}$/.test(input);
             if (!isSteam) { showToast("❌ Введи Steam ссылку или ID64!", "error"); return; }
             
+            temporaryHiddenIds.clear();
             let checkId = input.split('/').pop() || input;
             let chkId = `chk_${checkId}`;
             pendingUsers.push({ id: chkId, timestamp: Date.now(), name: "Загрузка...", avatar: "", url: input, status: 0, hours: "...", inv: "⏳ Сканирую...", tb_status: "none", notif: 0, is_checker: 1, device: "" });
@@ -896,8 +901,7 @@
             if (!idToDelete) return;
             tg.showConfirm("Удалить пользователя из базы?", passed => {
                 if (passed) {
-                    deletedUserIds.add(idToDelete); 
-                    localStorage.setItem('deletedUserIds', JSON.stringify([...deletedUserIds])); 
+                    temporaryHiddenIds.add(idToDelete); 
                     usersData = usersData.filter(u => u.id !== idToDelete);
                     filterList(true); if (!targetId) showList();
                     sendSilentCommand({ action: "delete", steam_id: idToDelete }, "Пользователь удален ❌", 1500);

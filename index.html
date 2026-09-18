@@ -652,7 +652,7 @@
             const input = document.getElementById('checker-input').value.trim();
             if (!input) return;
             const isSteam = input.includes("steamcommunity.com") || /^\d{17}$/.test(input);
-            if (!isSteam) { showToast("❌ Введи Steam ссылку или ID64!", "error"); return; }
+            if (!isSteam) { showToast("❌ Введите Steam ссылку или ID64!", "error"); return; }
             
             let checkId = input;
             if (input.includes("steamcommunity.com/profiles/")) checkId = input.split("profiles/")[1].replace('/', '');

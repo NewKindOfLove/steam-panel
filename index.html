@@ -90,7 +90,7 @@
 <body>
     <div id="toast">Уведомление</div>
 
-    <!-- 1. main menu nigger -->
+    <!-- 1. СПИСОК И ГЛАВНОЕ МЕНЮ -->
     <div class="container active-view" id="list-view">
         <div class="top-bar">
             <input type="text" id="new-user-input" placeholder="ID, LINK OR USERLINK (0)">
@@ -130,7 +130,7 @@
         <div id="pagination-controls"></div>
     </div>
 
-    <!-- 2. check invent -->
+    <!-- 2. ОКНО ЧЕКЕРА ИНВЕНТАРЕЙ -->
     <div class="container" id="checker-view">
         <div class="nav-bar">
             <button class="sq-btn btn-secondary" onclick="showList()">◀</button>
@@ -146,7 +146,7 @@
         </div>
     </div>
 
-    <!-- 3. user-dosie -->
+    <!-- 3. КАРТОЧКА ЮЗЕРА -->
     <div class="container" id="detail-view">
         <div class="nav-bar" style="align-items: center; gap: 8px; margin-bottom: 20px;">
             <button class="sq-btn btn-secondary" style="flex-shrink: 0;" onclick="showList()">◀</button>
@@ -264,7 +264,7 @@
         </div>
     </div>
 
-    <!-- 5. mass nigger import -->
+    <!-- 5. МАССОВЫЙ ИМПОРТ -->
     <div class="container" id="import-view">
         <div class="nav-bar">
             <button class="sq-btn btn-secondary" onclick="switchView('settings-view')">◀</button>
@@ -284,9 +284,8 @@
         let usersData = [];
         let currentFilteredData = [];
         
-        // ВРЕМЕННЫЙ КЭШ УДАЛЕННЫХ: Больше никакой вечной памяти!
-        let temporaryHiddenIds = new Set();
-        
+        // УБРАНА ВЕЧНАЯ ПАМЯТЬ ОБ УДАЛЕННЫХ ЮЗЕРАХ
+        // Теперь панель позволяет добавлять их снова!
         let localCache = JSON.parse(localStorage.getItem('steamLocalCache') || '{}');
         function updateLocalCache(id, key, value) {
             if (!localCache[id]) localCache[id] = {};
@@ -366,10 +365,13 @@
             setButtonLoading('btn-checker-search', false, '🔍');
         }
 
-        function getSteamIdFromUrl(url) {
-            if (!url) return "";
-            let parts = url.split('/').filter(x => x);
-            return parts[parts.length - 1].toLowerCase();
+        // ЖЕСТКИЙ ПАРСЕР ССЫЛОК (Очищает любой мусор для идеальной стыковки)
+        function extractId(str) {
+            if (!str) return "";
+            let s = String(str).toLowerCase().trim().replace(/\/+$/, "");
+            if (s.includes('profiles/')) return s.split('profiles/')[1].split('?')[0];
+            if (s.includes('id/')) return s.split('id/')[1].split('?')[0];
+            return s.split('/').pop().split('?')[0];
         }
 
         async function fetchLiveDB(manual = false) {
@@ -384,7 +386,7 @@
                 }
                 let rawData = JSON.parse(jsonStr || "[]");
                 
-                usersData = rawData.filter(u => !temporaryHiddenIds.has(u.id)).map(u => {
+                usersData = rawData.map(u => {
                     if (localCache[u.id]) {
                         if (localCache[u.id].device !== undefined) u.device = localCache[u.id].device;
                         if (localCache[u.id].note !== undefined) u.note = localCache[u.id].note;
@@ -392,13 +394,12 @@
                     return u;
                 });
 
-                // УВЕЛИЧЕНО ВРЕМЯ ЖИЗНИ ЗАГРУЗКИ ДО 60 СЕК (Чтобы не пропадало)
+                // ЗАГРУЗКА ВИСИТ МАКСИМУМ 60 СЕКУНД (Если сервер лагает)
                 pendingUsers = pendingUsers.filter(p => (Date.now() - p.timestamp) < 60000);
                 
+                // ИДЕАЛЬНАЯ СТЫКОВКА: Убираем из загрузки тех, кого сервер уже прислал
                 pendingUsers = pendingUsers.filter(p => !usersData.some(u => {
-                    let uId = getSteamIdFromUrl(u.url || u.id);
-                    let pId = getSteamIdFromUrl(p.url || p.id);
-                    return u.id === p.id || uId === pId || (p.id.startsWith('chk_') && u.id === p.id);
+                    return extractId(u.id) === extractId(p.id) || extractId(u.url) === extractId(p.id) || (p.id.startsWith('chk_') && u.id === p.id);
                 }));
 
                 usersData.unshift(...pendingUsers);
@@ -636,10 +637,8 @@
             const isSteam = input.includes("steamcommunity.com") || /^\d{17}$/.test(input);
             if (!isSteam) { showToast("❌ Введи Steam ссылку или ID64!", "error"); return; }
             
-            temporaryHiddenIds.clear(); // Очищаем временные скрытия при добавлении
-            
-            let checkId = input.split('/').pop() || input;
-            if (usersData.some(u => u.id === checkId || (u.url && u.url.toLowerCase() === input.toLowerCase()))) { 
+            let checkId = extractId(input);
+            if (usersData.some(u => extractId(u.url || u.id) === checkId)) { 
                 return showToast("⚠️ Пользователь уже есть в базе!", "warning"); 
             }
 
@@ -648,7 +647,7 @@
             filterList(true);
 
             setButtonLoading('btn-add-user', true, '➕');
-            sendSilentCommand({ action: "add_user", url: input }, "Отправлено боту ⏳", 1500); 
+            sendSilentCommand({ action: "add_user", url: input }, "Отправлено боту ⏳", 3000); 
             document.getElementById('new-user-input').value = ""; document.getElementById('new-user-input').blur();
         }
 
@@ -658,17 +657,15 @@
             for (let line of lines) { let text = line.trim(); if (text) toAdd.push(text); }
             if (toAdd.length === 0) return showToast("Пустой список!", "warning");
             
-            temporaryHiddenIds.clear(); // Очищаем временные скрытия при импорте
-            
             let finalUrls = [];
             for (let url of toAdd) {
-                let checkId = url.split('/').pop() || url;
-                if (!usersData.some(u => u.id === checkId || (u.url && u.url.toLowerCase() === url.toLowerCase()))) { finalUrls.push(url); }
+                let checkId = extractId(url);
+                if (!usersData.some(u => extractId(u.url || u.id) === checkId)) { finalUrls.push(url); }
             }
             if (finalUrls.length === 0) return showToast("Все пользователи уже в базе!", "warning");
             
             for (let url of finalUrls) {
-                let checkId = url.split('/').pop() || url;
+                let checkId = extractId(url);
                 pendingUsers.push({ id: checkId, timestamp: Date.now(), name: "Очередь...", avatar: "", url: url, status: 0, hours: "...", inv: "⏳ В очереди...", tb_status: "none", notif: 0, is_checker: 0, device: "" });
                 usersData.unshift(pendingUsers[pendingUsers.length-1]);
             }
@@ -703,8 +700,7 @@
             const isSteam = input.includes("steamcommunity.com") || /^\d{17}$/.test(input);
             if (!isSteam) { showToast("❌ Введи Steam ссылку или ID64!", "error"); return; }
             
-            temporaryHiddenIds.clear();
-            let checkId = input.split('/').pop() || input;
+            let checkId = extractId(input);
             let chkId = `chk_${checkId}`;
             pendingUsers.push({ id: chkId, timestamp: Date.now(), name: "Загрузка...", avatar: "", url: input, status: 0, hours: "...", inv: "⏳ Сканирую...", tb_status: "none", notif: 0, is_checker: 1, device: "" });
             usersData.unshift(pendingUsers[pendingUsers.length-1]);
@@ -901,7 +897,6 @@
             if (!idToDelete) return;
             tg.showConfirm("Удалить пользователя из базы?", passed => {
                 if (passed) {
-                    temporaryHiddenIds.add(idToDelete); 
                     usersData = usersData.filter(u => u.id !== idToDelete);
                     filterList(true); if (!targetId) showList();
                     sendSilentCommand({ action: "delete", steam_id: idToDelete }, "Пользователь удален ❌", 1500);

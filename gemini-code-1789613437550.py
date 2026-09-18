@@ -22,6 +22,8 @@ STEAM_API_KEYS = [
     "354B4A89A071C82E0213772519B80AAA"
 ]
 
+# ЖЕСТКИЙ АДРЕС БЕЗ ВСЯКИХ ГРУПП
+ADMIN_ID = 6739835571  
 DB_NAME = "steam_users.db"
 WEB_APP_URL = "https://newkindoflove.github.io/steam-panel/index.html" 
 
@@ -35,22 +37,15 @@ TG_CMD = None
 
 needs_sync = False
 
-# --- УМНЫЙ ЖУРНАЛ УВЕДОМЛЕНИЙ В ОДНО СООБЩЕНИЕ (ТОЛЬКО ЛИЧКА) ---
+# --- ИДЕАЛЬНЫЙ ЖУРНАЛ: СТРОГО 1 СООБЩЕНИЕ И ТОЛЬКО В ЛС ---
 async def send_alert(text):
     now = datetime.now().strftime("%d.%m %H:%M:%S")
     log_line = f"[{now}] {text}"
     
     async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
-        # Узнаем личный ID админа из базы (сохраняется при команде /start)
-        async with db.execute("SELECT value FROM settings WHERE key='admin_dm_id'") as cursor:
-            row = await cursor.fetchone()
-        if not row:
-            return # Если админ еще не написал /start, бот молчит
-        admin_dm_id = int(row[0])
-        
         async with db.execute("SELECT value FROM settings WHERE key='notif_history'") as cursor:
-            hist_row = await cursor.fetchone()
-        history = json.loads(hist_row[0]) if hist_row else []
+            row = await cursor.fetchone()
+        history = json.loads(row[0]) if row else []
         
         history.insert(0, log_line)
         if len(history) > 15: history = history[:15]
@@ -67,15 +62,15 @@ async def send_alert(text):
     try:
         if notif_msg_id:
             try:
-                await bot.edit_message_text(full_text, chat_id=admin_dm_id, message_id=notif_msg_id, parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
+                await bot.edit_message_text(full_text, chat_id=ADMIN_ID, message_id=notif_msg_id, parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
             except Exception as e:
                 if "message is not modified" not in str(e).lower():
-                    msg = await bot.send_message(admin_dm_id, full_text, parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
+                    msg = await bot.send_message(ADMIN_ID, full_text, parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
                     async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
                         await db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('notif_msg_id', ?)", (str(msg.message_id),))
                         await db.commit()
         else:
-            msg = await bot.send_message(admin_dm_id, full_text, parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
+            msg = await bot.send_message(ADMIN_ID, full_text, parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
             async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
                 await db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('notif_msg_id', ?)", (str(msg.message_id),))
                 await db.commit()
@@ -274,7 +269,7 @@ async def get_inventory_cs2(session, steam_id):
     
     return "Неизвестно ⚠️"
 
-# --- ОСНОВНОЙ ЦИКЛ ОБРАБОТКИ (ТУРБО-СКОРОСТЬ И ЗАЩИТА ОТ КРАШЕЙ) ---
+# --- ОСНОВНОЙ ЦИКЛ ОБРАБОТКИ (ЗАМЕНИЛ ВСЕ IGNORE НА REPLACE) ---
 async def poll_commands():
     if not TG_TOKEN: return
     try:
@@ -365,8 +360,8 @@ async def poll_commands():
                                         INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date)
                                         VALUES (?, ?, ?, ?, ?, ?, ?, 1, '')
                                     """, (chk_id, "❌ Не найдено", "", url, 0, "...", "Ошибка"))
-                            except Exception:
-                                pass
+                            except Exception as e:
+                                logging.error(f"Checker error: {e}")
                             await db.commit()
                             await trigger_sync()
 
@@ -403,16 +398,16 @@ async def poll_commands():
                                 
                                 chunk_added = 0
                                 for res in results:
-                                    sid, real_url, name, avatar, status, hrs, inv = res
-                                    
-                                    async with db.execute("SELECT steam_id FROM users WHERE steam_id = ?", (sid,)) as cursor:
-                                        if await cursor.fetchone(): continue
-                                        
-                                    await db.execute("""
-                                        INSERT INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications, device_name)
-                                        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, '')
-                                    """, (sid, name, avatar, real_url, status, hrs, inv, current_date))
-                                    chunk_added += 1
+                                    try:
+                                        sid, real_url, name, avatar, status, hrs, inv = res
+                                        # ЗАМЕНА НА REPLACE ДЛЯ ГАРАНТИИ
+                                        await db.execute("""
+                                            INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications, device_name)
+                                            VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, '')
+                                        """, (sid, name, avatar, real_url, status, hrs, inv, current_date))
+                                        chunk_added += 1
+                                    except Exception as e:
+                                        logging.error(f"Error adding batch user: {e}")
                                     
                                 added_count += chunk_added
                                 if chunk_added > 0:
@@ -434,22 +429,21 @@ async def poll_commands():
                                         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, '')
                                     """, (fallback_id, "❌ Ошибка ссылки", "", url, 0, "...", "Ошибка", current_date))
                                 else:
-                                    async with db.execute("SELECT steam_id FROM users WHERE steam_id = ?", (new_steam_id,)) as cursor:
-                                        if not await cursor.fetchone():
-                                            profile = await get_steam_profile(session, new_steam_id)
-                                            name = profile.get('personaname', 'ОШИБКА Steam') if profile else 'ОШИБКА Steam'
-                                            avatar = profile.get('avatarfull', '') if profile else ''
-                                            status = profile.get('personastate', 0) if profile else 0
-                                            real_url = profile.get('profileurl', url) if profile else url
-                                            
-                                            hrs_task = get_cs_hours(session, new_steam_id)
-                                            inv_task = get_inventory_cs2(session, new_steam_id)
-                                            cs_hours, inv_val = await asyncio.gather(hrs_task, inv_task)
-                                            
-                                            await db.execute("""
-                                                INSERT INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications, device_name)
-                                                VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, '')
-                                            """, (new_steam_id, name, avatar, real_url, status, cs_hours, inv_val, current_date))
+                                    profile = await get_steam_profile(session, new_steam_id)
+                                    name = profile.get('personaname', 'ОШИБКА Steam') if profile else 'ОШИБКА Steam'
+                                    avatar = profile.get('avatarfull', '') if profile else ''
+                                    status = profile.get('personastate', 0) if profile else 0
+                                    real_url = profile.get('profileurl', url) if profile else url
+                                    
+                                    hrs_task = get_cs_hours(session, new_steam_id)
+                                    inv_task = get_inventory_cs2(session, new_steam_id)
+                                    cs_hours, inv_val = await asyncio.gather(hrs_task, inv_task)
+                                    
+                                    # ЖЕЛЕЗНОЕ СОХРАНЕНИЕ
+                                    await db.execute("""
+                                        INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications, device_name)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, '')
+                                    """, (new_steam_id, name, avatar, real_url, status, cs_hours, inv_val, current_date))
                             except Exception as e:
                                 fallback_id = url.split('/')[-1] if '/' in url else url
                                 await db.execute("""
@@ -509,14 +503,9 @@ async def cmd_start(message: Message):
     if message.chat.type != "private":
         return await message.answer("❌ Панель доступна только в личных сообщениях с ботом!")
         
-    # БОТ НАМЕРТВО ЗАПОМИНАЕТ ТВОЮ ЛИЧКУ ПРИ НАЖАТИИ /start
-    async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
-        await db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('admin_dm_id', ?)", (str(message.chat.id),))
-        await db.commit()
-        
     final_url = f"{WEB_APP_URL}?t={TG_TOKEN}&d={TG_DB}&c={TG_CMD}"
     kb = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🌐 Открыть панель", web_app=WebAppInfo(url=final_url))]], resize_keyboard=True, is_persistent=True)
-    await message.answer("✅ Панель готова. Все логи теперь будут приходить ТОЛЬКО в этот чат!", reply_markup=kb)
+    await message.answer("✅ Панель готова. Жми кнопку!", reply_markup=kb)
 
 async def check_timers():
     changed = False

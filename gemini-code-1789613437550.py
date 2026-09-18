@@ -22,8 +22,7 @@ STEAM_API_KEYS = [
     "354B4A89A071C82E0213772519B80AAA"
 ]
 
-# ЖЕСТКИЙ АДРЕС БЕЗ ВСЯКИХ ГРУПП
-ADMIN_ID = 6739835571  
+ADMIN_ID = 6739835571  # СТРОГО ТВОЯ ЛИЧКА, НИКАКИХ ГРУПП
 DB_NAME = "steam_users.db"
 WEB_APP_URL = "https://newkindoflove.github.io/steam-panel/index.html" 
 
@@ -269,7 +268,7 @@ async def get_inventory_cs2(session, steam_id):
     
     return "Неизвестно ⚠️"
 
-# --- ОСНОВНОЙ ЦИКЛ ОБРАБОТКИ (ЗАМЕНИЛ ВСЕ IGNORE НА REPLACE) ---
+# --- ОСНОВНОЙ ЦИКЛ ОБРАБОТКИ ---
 async def poll_commands():
     if not TG_TOKEN: return
     try:
@@ -360,8 +359,8 @@ async def poll_commands():
                                         INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date)
                                         VALUES (?, ?, ?, ?, ?, ?, ?, 1, '')
                                     """, (chk_id, "❌ Не найдено", "", url, 0, "...", "Ошибка"))
-                            except Exception as e:
-                                logging.error(f"Checker error: {e}")
+                            except Exception:
+                                pass
                             await db.commit()
                             await trigger_sync()
 
@@ -373,7 +372,7 @@ async def poll_commands():
                                 try:
                                     sid = await resolve_vanity_url(session, url)
                                     if not sid:
-                                        fallback_id = url.split('/')[-1] if '/' in url else url
+                                        fallback_id = url.strip('/').split('/')[-1] if '/' in url else url
                                         return (fallback_id, url, "❌ Ошибка ссылки", "", 0, "...", "Ошибка")
                                     
                                     profile = await get_steam_profile(session, sid)
@@ -388,11 +387,12 @@ async def poll_commands():
                                     
                                     return (sid, real_url, name, avatar, status, hrs, inv)
                                 except Exception as e:
-                                    fallback_id = url.split('/')[-1] if '/' in url else url
+                                    fallback_id = url.strip('/').split('/')[-1] if '/' in url else url
                                     return (fallback_id, url, "❌ Ошибка / Таймаут", "", 0, "...", "Ошибка")
 
-                            for i in range(0, len(urls), 3):
-                                chunk = urls[i:i+3]
+                            # УСКОРЕННЫЙ ПАРСЕР: 6 ссылок одновременно (очень быстро)
+                            for i in range(0, len(urls), 6):
+                                chunk = urls[i:i+6]
                                 tasks = [fetch_user_data(u) for u in chunk]
                                 results = await asyncio.gather(*tasks)
                                 
@@ -400,7 +400,6 @@ async def poll_commands():
                                 for res in results:
                                     try:
                                         sid, real_url, name, avatar, status, hrs, inv = res
-                                        # ЗАМЕНА НА REPLACE ДЛЯ ГАРАНТИИ
                                         await db.execute("""
                                             INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications, device_name)
                                             VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, '')
@@ -413,7 +412,7 @@ async def poll_commands():
                                 if chunk_added > 0:
                                     await db.commit()
                                     await trigger_sync()
-                                await asyncio.sleep(1)
+                                await asyncio.sleep(0.5)
 
                             if added_count > 0:
                                 await send_alert(f"✅ Массовый импорт: добавлено {added_count} профилей.")
@@ -423,7 +422,7 @@ async def poll_commands():
                             try:
                                 new_steam_id = await resolve_vanity_url(session, url)
                                 if not new_steam_id:
-                                    fallback_id = url.split('/')[-1] if '/' in url else url
+                                    fallback_id = url.strip('/').split('/')[-1] if '/' in url else url
                                     await db.execute("""
                                         INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications, device_name)
                                         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, '')
@@ -439,13 +438,12 @@ async def poll_commands():
                                     inv_task = get_inventory_cs2(session, new_steam_id)
                                     cs_hours, inv_val = await asyncio.gather(hrs_task, inv_task)
                                     
-                                    # ЖЕЛЕЗНОЕ СОХРАНЕНИЕ
                                     await db.execute("""
                                         INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications, device_name)
                                         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, '')
                                     """, (new_steam_id, name, avatar, real_url, status, cs_hours, inv_val, current_date))
                             except Exception as e:
-                                fallback_id = url.split('/')[-1] if '/' in url else url
+                                fallback_id = url.strip('/').split('/')[-1] if '/' in url else url
                                 await db.execute("""
                                     INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications, device_name)
                                     VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, '')

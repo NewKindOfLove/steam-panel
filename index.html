@@ -148,6 +148,8 @@
 
     <!-- 3. КАРТОЧКА ЮЗЕРА -->
     <div class="container" id="detail-view">
+        
+        <!-- ГАРМОНИЧНЫЙ NAV-BAR СО ВСТРОЕННЫМ ПОЛЕМ ПК -->
         <div class="nav-bar" style="align-items: center; gap: 8px; margin-bottom: 20px;">
             <button class="sq-btn btn-secondary" style="flex-shrink: 0;" onclick="showList()">◀</button>
             
@@ -284,8 +286,10 @@
         let usersData = [];
         let currentFilteredData = [];
         
-        // УБРАНА ВЕЧНАЯ ПАМЯТЬ ОБ УДАЛЕННЫХ ЮЗЕРАХ
-        // Теперь панель позволяет добавлять их снова!
+        // Убрали вечную память об удаленных, теперь панель прощает всё
+        let deletedUserIds = new Set();
+        
+        // ПОЛНЫЙ ЛОКАЛЬНЫЙ КЭШ: Сохраняет все параметры моментально, чтобы интерфейс не "прыгал"
         let localCache = JSON.parse(localStorage.getItem('steamLocalCache') || '{}');
         function updateLocalCache(id, key, value) {
             if (!localCache[id]) localCache[id] = {};
@@ -365,7 +369,6 @@
             setButtonLoading('btn-checker-search', false, '🔍');
         }
 
-        // ЖЕСТКИЙ ПАРСЕР ССЫЛОК (Очищает любой мусор для идеальной стыковки)
         function extractId(str) {
             if (!str) return "";
             let s = String(str).toLowerCase().trim().replace(/\/+$/, "");
@@ -386,18 +389,21 @@
                 }
                 let rawData = JSON.parse(jsonStr || "[]");
                 
+                // Применяем локальный кэш (включая статусы), чтобы интерфейс не сбрасывался
                 usersData = rawData.map(u => {
                     if (localCache[u.id]) {
                         if (localCache[u.id].device !== undefined) u.device = localCache[u.id].device;
                         if (localCache[u.id].note !== undefined) u.note = localCache[u.id].note;
+                        if (localCache[u.id].tb_status !== undefined) u.tb_status = localCache[u.id].tb_status;
+                        if (localCache[u.id].tb_time !== undefined) u.tb_time = localCache[u.id].tb_time;
+                        if (localCache[u.id].log !== undefined) u.log = localCache[u.id].log;
                     }
                     return u;
                 });
 
-                // ЗАГРУЗКА ВИСИТ МАКСИМУМ 60 СЕКУНД (Если сервер лагает)
+                // Загрузка висит максимум 60 секунд
                 pendingUsers = pendingUsers.filter(p => (Date.now() - p.timestamp) < 60000);
                 
-                // ИДЕАЛЬНАЯ СТЫКОВКА: Убираем из загрузки тех, кого сервер уже прислал
                 pendingUsers = pendingUsers.filter(p => !usersData.some(u => {
                     return extractId(u.id) === extractId(p.id) || extractId(u.url) === extractId(p.id) || (p.id.startsWith('chk_') && u.id === p.id);
                 }));
@@ -441,7 +447,7 @@
         async function processCommandQueue() {
             if (isCommandSending || commandQueue.length === 0) return;
             isCommandSending = true;
-            let { cmdObj, toastMsg, timeoutMs } = commandQueue.shift();
+            let { cmdObj, toastMsg } = commandQueue.shift();
 
             if(toastMsg) showToast(toastMsg, "info");
 
@@ -469,14 +475,18 @@
                 
                 await fetch(`https://api.telegra.ph/editPage/${CMD_PATH}`, { method: "POST", body: formData });
 
+                // МОМЕНТАЛЬНЫЙ УСПЕХ: Выводим зеленую плашку, чтобы не висело "Сохраняю..."
+                if (toastMsg && !toastMsg.includes("Отправлено")) {
+                    showToast("Успешно! ✅", "success");
+                }
+
                 setTimeout(() => {
                     pendingCommandsCount--;
                     if (pendingCommandsCount <= 0) { pendingCommandsCount = 0; fetchLiveDB(false); }
                     resetAllButtons();
-                    if(cmdObj.action === "force_update" || cmdObj.action === "force_update_single" || cmdObj.action === "update_device") showToast("Успешно! ✅", "success");
                     isCommandSending = false;
                     processCommandQueue();
-                }, timeoutMs);
+                }, 300); // Интерфейс реагирует за долю секунды
 
             } catch(e) { 
                 updateBotStatus(false);
@@ -489,9 +499,9 @@
             }
         }
 
-        function sendSilentCommand(cmdObj, toastMsg = null, timeoutMs = 1500) {
+        function sendSilentCommand(cmdObj, toastMsg = null) {
             pendingCommandsCount++;
-            commandQueue.push({ cmdObj, toastMsg, timeoutMs });
+            commandQueue.push({ cmdObj, toastMsg });
             processCommandQueue();
         }
 
@@ -647,7 +657,7 @@
             filterList(true);
 
             setButtonLoading('btn-add-user', true, '➕');
-            sendSilentCommand({ action: "add_user", url: input }, "Отправлено боту ⏳", 3000); 
+            sendSilentCommand({ action: "add_user", url: input }, "Отправлено боту ⏳"); 
             document.getElementById('new-user-input').value = ""; document.getElementById('new-user-input').blur();
         }
 
@@ -670,7 +680,7 @@
                 usersData.unshift(pendingUsers[pendingUsers.length-1]);
             }
             
-            sendSilentCommand({ action: "add_users_batch", urls: finalUrls }, `Запущена загрузка ${finalUrls.length} шт. ⏳`, 1500);
+            sendSilentCommand({ action: "add_users_batch", urls: finalUrls }, "Отправлено боту ⏳");
             document.getElementById('import-textarea').value = "";
             switchView('list-view');
         }
@@ -690,7 +700,7 @@
             if (userIdx > -1) { usersData[userIdx].device = newDevice; }
 
             setButtonLoading('btn-save-device', true, '💾');
-            sendSilentCommand({ action: "update_device", steam_id: currentUser.id, device: newDevice }, "ПК сохранен ✅", 1500);
+            sendSilentCommand({ action: "update_device", steam_id: currentUser.id, device: newDevice }, "Сохраняю ПК... ⏳");
             filterList(false);
         }
 
@@ -707,13 +717,13 @@
             
             renderChecker();
             setButtonLoading('btn-checker-search', true, '🔍');
-            sendSilentCommand({ action: "checker_scan", url: input }, "Сканирую CS2...", 1500);
+            sendSilentCommand({ action: "checker_scan", url: input }, "Сканирую CS2... ⏳");
             document.getElementById('checker-input').blur();
         }
 
         function approveChecker(id, btnElement) {
             btnElement.innerText = "⏳ Добавляю...";
-            sendSilentCommand({ action: "approve_checker", steam_id: id }, "Переношу в базу...", 1500);
+            sendSilentCommand({ action: "approve_checker", steam_id: id }, "Переношу в базу... ⏳");
             usersData = usersData.filter(u => { if(u.id === id) { u.is_checker = 0; } return true; });
             setTimeout(renderChecker, 500);
         }
@@ -799,15 +809,21 @@
         document.getElementById("snat-time").addEventListener("keydown", e => { if (e.key === "Enter") { saveSnat(); document.getElementById("snat-time").blur();} });
         document.getElementById("snat-log").addEventListener("keydown", e => { if (e.key === "Enter") { saveSnat(); document.getElementById("snat-log").blur();} });
 
+        // ДОБАВЛЕН ЖЕСТКИЙ ЛОКАЛЬНЫЙ КЭШ ДЛЯ СТАТУСОВ (Трейдбан, снят, тд), ЧТОБЫ НЕ ПРЫГАЛИ
         function saveTradebanState(status, timeStamp, logNum = "") {
             if (!currentUser) return;
             currentUser.tb_status = status; currentUser.tb_time = timeStamp; currentUser.log = logNum;
+            
+            updateLocalCache(currentUser.id, 'tb_status', status);
+            updateLocalCache(currentUser.id, 'tb_time', timeStamp);
+            updateLocalCache(currentUser.id, 'log', logNum);
+            
             const userIdx = usersData.findIndex(u => u.id === currentUser.id);
             if (userIdx > -1) { usersData[userIdx].tb_status = status; usersData[userIdx].tb_time = timeStamp; usersData[userIdx].log = logNum; }
             
             document.getElementById('ban-ui').style.display = 'none'; document.getElementById('snat-ui').style.display = 'none';
             showDetail(currentUser.id, true); filterList(false); 
-            sendSilentCommand({ action: "update_tradeban", steam_id: currentUser.id, tb_status: status, tb_time: timeStamp, log: logNum }, "Сохраняю...", 1500);
+            sendSilentCommand({ action: "update_tradeban", steam_id: currentUser.id, tb_status: status, tb_time: timeStamp, log: logNum }, "Сохраняю параметры... ⏳");
         }
 
         function fillInputsFromUnix(unix, prefix) {
@@ -889,7 +905,7 @@
             if (userIdx > -1) { usersData[userIdx].note = currentUser.note; }
             
             setButtonLoading('btn-save-note', true, '💾');
-            sendSilentCommand({ action: "update_note", steam_id: currentUser.id, note: currentUser.note }, "Примечание сохранено ✅", 1500);
+            sendSilentCommand({ action: "update_note", steam_id: currentUser.id, note: currentUser.note }, "Сохраняю заметку... ⏳");
         }
 
         function deleteUser(targetId = null) {
@@ -899,7 +915,7 @@
                 if (passed) {
                     usersData = usersData.filter(u => u.id !== idToDelete);
                     filterList(true); if (!targetId) showList();
-                    sendSilentCommand({ action: "delete", steam_id: idToDelete }, "Пользователь удален ❌", 1500);
+                    sendSilentCommand({ action: "delete", steam_id: idToDelete }, "Удалено ❌", 1500);
                 }
             });
         }

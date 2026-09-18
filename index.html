@@ -30,7 +30,7 @@
         .user-name-text { font-size: 15px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; }
         .user-inv-text { font-size: 12px; font-weight: bold; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         
-        .device-badge { color: #888888; font-size: 10px; font-weight: bold; background-color: #252525; padding: 3px 6px; border-radius: 4px; display: inline-flex; align-items: center; cursor: pointer; transition: 0.2s; border: 1px solid #333333; letter-spacing: 0.5px;}
+        .device-badge { color: #888888; font-size: 11px; font-weight: normal; background-color: #1a1a1a; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; cursor: pointer; transition: 0.2s; border: 1px solid #2a2a2a; margin-top: 5px;}
         .device-badge:active { background-color: #333333; color: #ffffff; }
 
         .bell-icon { font-size: 16px; padding: 5px; cursor: pointer; position: absolute; top: 4px; right: 4px; }
@@ -148,18 +148,23 @@
 
     <!-- 3. КАРТОЧКА ЮЗЕРА -->
     <div class="container" id="detail-view">
-        <div class="nav-bar">
-            <button class="sq-btn btn-secondary" onclick="showList()">◀</button>
-            <div style="display:flex; gap: 5px;">
+        
+        <!-- ГАРМОНИЧНЫЙ NAV-BAR СО ВСТРОЕННЫМ ПОЛЕМ -->
+        <div class="nav-bar" style="align-items: center; gap: 8px; margin-bottom: 20px;">
+            <button class="sq-btn btn-secondary" style="flex-shrink: 0;" onclick="showList()">◀</button>
+            
+            <div style="position: relative; flex-grow: 1;">
+                <input type="text" id="detail-device" placeholder="Название ПК..." style="width: 100%; height: 42px; background-color: #1e1e1e; color: #ffffff; border: 1px solid #333333; border-radius: 8px; padding: 0 40px; font-size: 13px; outline: none; box-sizing: border-box; font-weight: bold; text-align: center;">
+                <button id="btn-save-device" onclick="saveDevice()" style="position: absolute; right: 4px; top: 4px; bottom: 4px; width: 34px; background-color: #252525; border: 1px solid #333333; border-radius: 6px; font-size: 14px; color: #ffffff; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s;">💾</button>
+            </div>
+
+            <div style="display:flex; gap: 5px; flex-shrink: 0;">
                 <button class="sq-btn btn-secondary" onclick="deleteUser()">❌</button>
                 <button id="btn-detail-refresh" class="sq-btn btn-secondary" onclick="refreshCurrentUser()">⟳</button>
             </div>
         </div>
+
         <div class="card-header">
-            <div style="display: flex; gap: 5px; margin-bottom: 15px; width: 100%; justify-content: center;">
-                <input type="text" id="detail-device" placeholder="Название ПК" style="background-color: #1e1e1e; color: #ffffff; border: 1px solid #333333; border-radius: 6px; padding: 6px 10px; font-size: 13px; outline: none; width: 140px; text-align: center; font-weight: bold;">
-                <button class="sq-btn btn-secondary" style="width: 33px; height: 33px; font-size: 14px;" onclick="saveDevice()" id="btn-save-device">💾</button>
-            </div>
             <a id="detail-link" href="#" target="_blank"><img id="detail-avatar" class="avatar-big" src=""></a>
             <div class="card-name" id="detail-name">Имя</div>
             <div class="card-id-text">ID: <span id="detail-id" class="clickable-id" onclick="copyId(this.innerText)"></span> &nbsp;|&nbsp; Добавлен: <span id="detail-added-date" style="color:#888888;"></span></div>
@@ -449,7 +454,7 @@
                     pendingCommandsCount--;
                     if (pendingCommandsCount <= 0) { pendingCommandsCount = 0; fetchLiveDB(false); }
                     resetAllButtons();
-                    if(cmdObj.action === "force_update" || cmdObj.action === "force_update_single") showToast("Данные обновлены! ✅", "success");
+                    if(cmdObj.action === "force_update" || cmdObj.action === "force_update_single" || cmdObj.action === "update_device") showToast("Успешно! ✅", "success");
                     isCommandSending = false;
                     processCommandQueue();
                 }, timeoutMs);
@@ -511,7 +516,7 @@
                 else if (user.tb_status === "unbanned") tbText = `<div class="tb-status-text" style="color: #4CAF50; font-weight: 800;">💸 Разбанился 💸</div>`;
 
                 let showId = user.id.startsWith('http') ? "ОШИБКА" : user.id;
-                let deviceHtml = user.device ? `<div style="margin-top: 5px;"><span class="device-badge" onclick="copyIdFromList(event, '${user.device}')">💻 ${user.device}</span></div>` : "";
+                let deviceHtml = user.device ? `<div><span class="device-badge" onclick="copyIdFromList(event, '${user.device}')">💻 ${user.device}</span></div>` : "";
 
                 item.innerHTML = `
                     <div class="avatar-container" onclick="showDetail('${user.id}')">
@@ -659,7 +664,7 @@
             if (!currentUser) return;
             currentUser.device = document.getElementById('detail-device').value.trim();
             setButtonLoading('btn-save-device', true, '💾');
-            sendSilentCommand({ action: "update_device", steam_id: currentUser.id, device: currentUser.device }, "Устройство сохранено ✅", 1500);
+            sendSilentCommand({ action: "update_device", steam_id: currentUser.id, device: currentUser.device }, "Отправлено...", 1500);
             filterList(false);
         }
 

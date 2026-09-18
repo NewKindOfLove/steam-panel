@@ -454,7 +454,6 @@
                     pendingCommandsCount--;
                     if (pendingCommandsCount <= 0) { pendingCommandsCount = 0; fetchLiveDB(false); }
                     resetAllButtons();
-                    if(cmdObj.action === "force_update" || cmdObj.action === "force_update_single" || cmdObj.action === "update_device") showToast("Успешно! ✅", "success");
                     isCommandSending = false;
                     processCommandQueue();
                 }, timeoutMs);
@@ -660,12 +659,22 @@
         document.getElementById("new-user-input").addEventListener("keydown", e => { if (e.key === "Enter") addUserFromInput(); });
         document.getElementById("detail-device").addEventListener("keydown", e => { if (e.key === "Enter") { saveDevice(); document.getElementById("detail-device").blur();} });
 
+        // --- ИСПРАВЛЕННАЯ ФУНКЦИЯ СОХРАНЕНИЯ ПК ---
         function saveDevice() {
             if (!currentUser) return;
-            currentUser.device = document.getElementById('detail-device').value.trim();
+            let newDevice = document.getElementById('detail-device').value.trim();
+            currentUser.device = newDevice;
+            
+            // ВАЖНО: Обновляем локальную базу ДО того, как сервер ответит, чтобы ПК не пропадал
+            let userIdx = usersData.findIndex(u => u.id === currentUser.id);
+            if (userIdx > -1) {
+                usersData[userIdx].device = newDevice;
+            }
+
             setButtonLoading('btn-save-device', true, '💾');
-            sendSilentCommand({ action: "update_device", steam_id: currentUser.id, device: currentUser.device }, "Отправлено...", 1500);
-            filterList(false);
+            // Увеличили таймаут до 4000мс, чтобы сервер гарантированно успел записать это в облако
+            sendSilentCommand({ action: "update_device", steam_id: currentUser.id, device: newDevice }, "ПК сохранен ✅", 4000);
+            filterList(false); // Мгновенно перерисовывает список с уже добавленным ПК
         }
 
         function runChecker() {
@@ -773,6 +782,7 @@
         document.getElementById("snat-time").addEventListener("keydown", e => { if (e.key === "Enter") { saveSnat(); document.getElementById("snat-time").blur();} });
         document.getElementById("snat-log").addEventListener("keydown", e => { if (e.key === "Enter") { saveSnat(); document.getElementById("snat-log").blur();} });
 
+        // --- ИСПРАВЛЕНО СОХРАНЕНИЕ ТРЕЙДБАНА ТАК ЖЕ ---
         function saveTradebanState(status, timeStamp, logNum = "") {
             if (!currentUser) return;
             currentUser.tb_status = status; currentUser.tb_time = timeStamp; currentUser.log = logNum;
@@ -781,7 +791,7 @@
             
             document.getElementById('ban-ui').style.display = 'none'; document.getElementById('snat-ui').style.display = 'none';
             showDetail(currentUser.id, true); filterList(false); 
-            sendSilentCommand({ action: "update_tradeban", steam_id: currentUser.id, tb_status: status, tb_time: timeStamp, log: logNum }, "Сохраняю...", 1500);
+            sendSilentCommand({ action: "update_tradeban", steam_id: currentUser.id, tb_status: status, tb_time: timeStamp, log: logNum }, "Сохраняю...", 4000);
         }
 
         function fillInputsFromUnix(unix, prefix) {
@@ -853,11 +863,15 @@
             filterList(false); sendSilentCommand({ action: "toggle_notif", steam_id: id }, user.notif ? "Уведомления включены" : "Уведомления отключены", 1500);
         }
 
+        // --- ИСПРАВЛЕНО СОХРАНЕНИЕ ПРИМЕЧАНИЯ ТАК ЖЕ ---
         function saveNote() {
             if (!currentUser) return;
             currentUser.note = document.getElementById('detail-note').value;
+            const userIdx = usersData.findIndex(u => u.id === currentUser.id);
+            if (userIdx > -1) { usersData[userIdx].note = currentUser.note; }
+            
             setButtonLoading('btn-save-note', true, '💾');
-            sendSilentCommand({ action: "update_note", steam_id: currentUser.id, note: currentUser.note }, "Примечание сохранено ✅", 1500);
+            sendSilentCommand({ action: "update_note", steam_id: currentUser.id, note: currentUser.note }, "Примечание сохранено ✅", 4000);
         }
 
         function deleteUser(targetId = null) {

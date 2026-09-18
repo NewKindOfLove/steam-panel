@@ -149,12 +149,12 @@
     <!-- 3. КАРТОЧКА ЮЗЕРА -->
     <div class="container" id="detail-view">
         
-        <!-- ГАРМОНИЧНЫЙ NAV-BAR СО ВСТРОЕННЫМ ПОЛЕМ -->
+        <!-- ГАРМОНИЧНЫЙ NAV-BAR СО ВСТРОЕННЫМ ПОЛЕМ ПК -->
         <div class="nav-bar" style="align-items: center; gap: 8px; margin-bottom: 20px;">
             <button class="sq-btn btn-secondary" style="flex-shrink: 0;" onclick="showList()">◀</button>
             
             <div style="position: relative; flex-grow: 1;">
-                <input type="text" id="detail-device" placeholder="Название ПК..." style="width: 100%; height: 42px; background-color: #1e1e1e; color: #ffffff; border: 1px solid #333333; border-radius: 8px; padding: 0 40px; font-size: 13px; outline: none; box-sizing: border-box; font-weight: bold; text-align: center;">
+                <input type="text" id="detail-device" placeholder="Название ПК..." style="width: 100%; height: 42px; background-color: #1e1e1e; color: #ffffff; border: 1px solid #333333; border-radius: 8px; padding: 0 40px 0 15px; font-size: 13px; outline: none; box-sizing: border-box; font-weight: bold; text-align: left;">
                 <button id="btn-save-device" onclick="saveDevice()" style="position: absolute; right: 4px; top: 4px; bottom: 4px; width: 34px; background-color: #252525; border: 1px solid #333333; border-radius: 6px; font-size: 14px; color: #ffffff; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s;">💾</button>
             </div>
 
@@ -287,6 +287,14 @@
         let currentFilteredData = [];
         let deletedUserIds = new Set(JSON.parse(localStorage.getItem('deletedUserIds') || '[]'));
         
+        // ЖЕСТКИЙ КЭШ: Чтобы панель не затирала данные до ответа сервера
+        let localCache = JSON.parse(localStorage.getItem('steamLocalCache') || '{}');
+        function updateLocalCache(id, key, value) {
+            if (!localCache[id]) localCache[id] = {};
+            localCache[id][key] = value;
+            localStorage.setItem('steamLocalCache', JSON.stringify(localCache));
+        }
+        
         let pendingUsers = []; 
         let commandQueue = [];
         let isCommandSending = false;
@@ -297,13 +305,10 @@
         
         let showBells = localStorage.getItem('showBells') !== 'false';
         document.getElementById('toggle-bells').checked = showBells;
-        
         let allNotifs = localStorage.getItem('allNotifs') !== 'false';
         document.getElementById('toggle-all-notifs').checked = allNotifs;
-
         let usePagination = localStorage.getItem('usePagination') === 'true';
         document.getElementById('toggle-pagination').checked = usePagination;
-
         let showLogs = localStorage.getItem('showLogs') !== 'false';
         document.getElementById('toggle-logs').checked = showLogs;
 
@@ -312,7 +317,6 @@
             for(let i=1; i<=31; i++) days += `<option value="${i}">${String(i).padStart(2,'0')}</option>`;
             for(let i=1; i<=12; i++) months += `<option value="${i}">${String(i).padStart(2,'0')}</option>`;
             for(let i=1; i<=15; i++) days15 += `<option value="${i}">${i}</option>`;
-            
             document.getElementById('ban-day').innerHTML = days; document.getElementById('ban-month').innerHTML = months;
             document.getElementById('snat-day').innerHTML = days; document.getElementById('snat-month').innerHTML = months;
             document.getElementById('ban-days').innerHTML = days15;
@@ -363,6 +367,13 @@
             setButtonLoading('btn-checker-search', false, '🔍');
         }
 
+        // УМНЫЙ ПАРСЕР ССЫЛОК ДЛЯ СТЫКОВКИ (Избавляет от бесконечной загрузки)
+        function getSteamIdFromUrl(url) {
+            if (!url) return "";
+            let parts = url.split('/').filter(x => x);
+            return parts[parts.length - 1].toLowerCase();
+        }
+
         async function fetchLiveDB(manual = false) {
             if (!DB_PATH || isEditing || pendingCommandsCount > 0) return; 
             try {
@@ -374,14 +385,24 @@
                     for (let c of data.result.content[0].children) if (typeof c === 'string') jsonStr += c;
                 }
                 let rawData = JSON.parse(jsonStr || "[]");
-                usersData = rawData.filter(u => !deletedUserIds.has(u.id));
+                
+                // Применяем локальный кэш, чтобы введенные данные не стирались
+                usersData = rawData.filter(u => !deletedUserIds.has(u.id)).map(u => {
+                    if (localCache[u.id]) {
+                        if (localCache[u.id].device !== undefined) u.device = localCache[u.id].device;
+                        if (localCache[u.id].note !== undefined) u.note = localCache[u.id].note;
+                    }
+                    return u;
+                });
 
                 pendingUsers = pendingUsers.filter(p => (Date.now() - p.timestamp) < 300000);
-                pendingUsers = pendingUsers.filter(p => !usersData.some(u => 
-                    u.id === p.id || 
-                    (u.url && p.url && u.url.toLowerCase() === p.url.toLowerCase()) || 
-                    (p.id.startsWith('chk_') && u.id === p.id)
-                ));
+                
+                // Идеальная стыковка: панель понимает, что "Way" и "https://steamcommunity.com/id/Way" — это одно и то же
+                pendingUsers = pendingUsers.filter(p => !usersData.some(u => {
+                    let uId = getSteamIdFromUrl(u.url || u.id);
+                    let pId = getSteamIdFromUrl(p.url || p.id);
+                    return u.id === p.id || uId === pId || (p.id.startsWith('chk_') && u.id === p.id);
+                }));
 
                 usersData.unshift(...pendingUsers);
                 
@@ -514,7 +535,7 @@
                 else if (user.tb_status === "snat_vac") tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#F44336;">🛑 ВАК</span> ${timerHtml}${logHtml}</div>`;
                 else if (user.tb_status === "unbanned") tbText = `<div class="tb-status-text" style="color: #4CAF50; font-weight: 800;">💸 Разбанился 💸</div>`;
 
-                let showId = user.id.startsWith('http') ? "ОШИБКА" : user.id;
+                let showId = user.id.startsWith('http') || user.id.startsWith('imp_') ? "..." : user.id;
                 let deviceHtml = user.device ? `<div><span class="device-badge" onclick="copyIdFromList(event, '${user.device}')">💻 ${user.device}</span></div>` : "";
 
                 item.innerHTML = `
@@ -659,22 +680,21 @@
         document.getElementById("new-user-input").addEventListener("keydown", e => { if (e.key === "Enter") addUserFromInput(); });
         document.getElementById("detail-device").addEventListener("keydown", e => { if (e.key === "Enter") { saveDevice(); document.getElementById("detail-device").blur();} });
 
-        // --- ИСПРАВЛЕННАЯ ФУНКЦИЯ СОХРАНЕНИЯ ПК ---
+        // --- ЖЕСТКОЕ СОХРАНЕНИЕ УСТРОЙСТВА ---
         function saveDevice() {
             if (!currentUser) return;
             let newDevice = document.getElementById('detail-device').value.trim();
             currentUser.device = newDevice;
             
-            // ВАЖНО: Обновляем локальную базу ДО того, как сервер ответит, чтобы ПК не пропадал
+            // Записываем в локальный кэш браузера, чтобы оно не стерлось при обновлении!
+            updateLocalCache(currentUser.id, 'device', newDevice);
+            
             let userIdx = usersData.findIndex(u => u.id === currentUser.id);
-            if (userIdx > -1) {
-                usersData[userIdx].device = newDevice;
-            }
+            if (userIdx > -1) { usersData[userIdx].device = newDevice; }
 
             setButtonLoading('btn-save-device', true, '💾');
-            // Увеличили таймаут до 4000мс, чтобы сервер гарантированно успел записать это в облако
-            sendSilentCommand({ action: "update_device", steam_id: currentUser.id, device: newDevice }, "ПК сохранен ✅", 4000);
-            filterList(false); // Мгновенно перерисовывает список с уже добавленным ПК
+            sendSilentCommand({ action: "update_device", steam_id: currentUser.id, device: newDevice }, "ПК сохранен ✅", 1500);
+            filterList(false);
         }
 
         function runChecker() {
@@ -782,7 +802,6 @@
         document.getElementById("snat-time").addEventListener("keydown", e => { if (e.key === "Enter") { saveSnat(); document.getElementById("snat-time").blur();} });
         document.getElementById("snat-log").addEventListener("keydown", e => { if (e.key === "Enter") { saveSnat(); document.getElementById("snat-log").blur();} });
 
-        // --- ИСПРАВЛЕНО СОХРАНЕНИЕ ТРЕЙДБАНА ТАК ЖЕ ---
         function saveTradebanState(status, timeStamp, logNum = "") {
             if (!currentUser) return;
             currentUser.tb_status = status; currentUser.tb_time = timeStamp; currentUser.log = logNum;
@@ -791,7 +810,7 @@
             
             document.getElementById('ban-ui').style.display = 'none'; document.getElementById('snat-ui').style.display = 'none';
             showDetail(currentUser.id, true); filterList(false); 
-            sendSilentCommand({ action: "update_tradeban", steam_id: currentUser.id, tb_status: status, tb_time: timeStamp, log: logNum }, "Сохраняю...", 4000);
+            sendSilentCommand({ action: "update_tradeban", steam_id: currentUser.id, tb_status: status, tb_time: timeStamp, log: logNum }, "Сохраняю...", 1500);
         }
 
         function fillInputsFromUnix(unix, prefix) {
@@ -863,15 +882,18 @@
             filterList(false); sendSilentCommand({ action: "toggle_notif", steam_id: id }, user.notif ? "Уведомления включены" : "Уведомления отключены", 1500);
         }
 
-        // --- ИСПРАВЛЕНО СОХРАНЕНИЕ ПРИМЕЧАНИЯ ТАК ЖЕ ---
+        // --- ЖЕСТКОЕ СОХРАНЕНИЕ ПРИМЕЧАНИЯ ---
         function saveNote() {
             if (!currentUser) return;
             currentUser.note = document.getElementById('detail-note').value;
+            
+            updateLocalCache(currentUser.id, 'note', currentUser.note);
+            
             const userIdx = usersData.findIndex(u => u.id === currentUser.id);
             if (userIdx > -1) { usersData[userIdx].note = currentUser.note; }
             
             setButtonLoading('btn-save-note', true, '💾');
-            sendSilentCommand({ action: "update_note", steam_id: currentUser.id, note: currentUser.note }, "Примечание сохранено ✅", 4000);
+            sendSilentCommand({ action: "update_note", steam_id: currentUser.id, note: currentUser.note }, "Примечание сохранено ✅", 1500);
         }
 
         function deleteUser(targetId = null) {

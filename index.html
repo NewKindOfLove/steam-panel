@@ -17,7 +17,8 @@
         .btn-secondary { background-color: #252525; color: #ffffff; } 
         
         .user-list { display: flex; flex-direction: column; gap: 10px; }
-        .user-item { display: flex; align-items: center; padding: 10px; background-color: #1e1e1e; border: 1px solid #2a2a2a; border-radius: 10px; cursor: pointer; position: relative; min-height: 50px; }
+        /* Увеличен отступ снизу (28px) чтобы статусы не наезжали на текст */
+        .user-item { display: flex; align-items: center; padding: 10px 10px 28px 10px; background-color: #1e1e1e; border: 1px solid #2a2a2a; border-radius: 10px; cursor: pointer; position: relative; min-height: 50px; }
         .avatar-container { position: relative; margin-right: 15px; }
         .avatar-small { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; display: block;}
         
@@ -26,7 +27,8 @@
         .bg-ingame { background-color: #7FFF00; display: block; box-shadow: 0 0 8px #7FFF00;} 
         .bg-away { background-color: #FFC107; display: block; }
         
-        .user-info-short { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; overflow: hidden; margin-right: 25px;} 
+        /* Блок с текстом поднят чуть выше (margin-top) */
+        .user-info-short { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; overflow: hidden; margin-right: 25px; margin-top: -4px;} 
         .user-name-text { font-size: 15px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; }
         .user-inv-text { font-size: 12px; font-weight: bold; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         
@@ -273,9 +275,7 @@
         let currentUser = null;
         let usersData = [];
         let currentFilteredData = [];
-        
-        // Исправлено: Удаленные юзеры не кешируются навечно, чтобы не было багов с повторным добавлением
-        let pendingDeletes = new Set();
+        let deletedUserIds = new Set(JSON.parse(localStorage.getItem('deletedUserIds') || '[]'));
         
         let pendingUsers = []; 
         let commandQueue = [];
@@ -363,12 +363,14 @@
                     for (let c of data.result.content[0].children) if (typeof c === 'string') jsonStr += c;
                 }
                 let rawData = JSON.parse(jsonStr || "[]");
-                usersData = rawData.filter(u => !pendingDeletes.has(u.id));
+                usersData = rawData.filter(u => !deletedUserIds.has(u.id));
 
-                pendingUsers = pendingUsers.filter(p => (Date.now() - p.timestamp) < 300000); // 5 минут макс
-                
-                // Исправлено: теперь корректно находит по URL
-                pendingUsers = pendingUsers.filter(p => !usersData.some(u => u.id === p.id || (u.url && u.url.includes(p.id)) || (p.id.startsWith('chk_') && u.id === p.id)));
+                pendingUsers = pendingUsers.filter(p => (Date.now() - p.timestamp) < 300000);
+                pendingUsers = pendingUsers.filter(p => !usersData.some(u => 
+                    u.id === p.id || 
+                    (u.url && p.url && u.url.toLowerCase() === p.url.toLowerCase()) || 
+                    (p.id.startsWith('chk_') && u.id === p.id)
+                ));
 
                 usersData.unshift(...pendingUsers);
                 
@@ -501,7 +503,7 @@
                 else if (user.tb_status === "snat_vac") tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#F44336;">🛑 ВАК</span> ${timerHtml}${logHtml}</div>`;
                 else if (user.tb_status === "unbanned") tbText = `<div class="tb-status-text" style="color: #4CAF50; font-weight: 800;">💸 Разбанился 💸</div>`;
 
-                let showId = user.id.startsWith('imp_') || user.id.startsWith('http') ? "..." : user.id;
+                let showId = user.id.startsWith('http') ? "ОШИБКА" : user.id;
 
                 item.innerHTML = `
                     <div class="avatar-container" onclick="showDetail('${user.id}')">
@@ -602,10 +604,10 @@
             const isSteam = input.includes("steamcommunity.com") || /^\d{17}$/.test(input);
             if (!isSteam) { showToast("❌ Введи Steam ссылку или ID64!", "error"); return; }
             
-            let checkId = input;
-            if (input.includes("steamcommunity.com/profiles/")) checkId = input.split("profiles/")[1].replace('/', '');
-            else if (input.includes("steamcommunity.com/id/")) checkId = input.split("id/")[1].replace('/', '');
-            if (usersData.some(u => u.id === checkId || (u.url && u.url.includes(checkId)))) { return showToast("⚠️ Пользователь уже есть в базе!", "warning"); }
+            let checkId = input.split('/').pop() || input;
+            if (usersData.some(u => u.id === checkId || (u.url && u.url.toLowerCase() === input.toLowerCase()))) { 
+                return showToast("⚠️ Пользователь уже есть в базе!", "warning"); 
+            }
 
             pendingUsers.push({ id: checkId, timestamp: Date.now(), name: "Загрузка...", avatar: "", url: input, status: 0, hours: "...", inv: "⏳ Сканирую...", tb_status: "none", notif: 0, is_checker: 0 });
             usersData.unshift(pendingUsers[pendingUsers.length-1]);
@@ -624,19 +626,14 @@
             
             let finalUrls = [];
             for (let url of toAdd) {
-                let checkId = url;
-                if (url.includes("steamcommunity.com/profiles/")) checkId = url.split("profiles/")[1].replace('/', '');
-                else if (url.includes("steamcommunity.com/id/")) checkId = url.split("id/")[1].replace('/', '');
-                if (!usersData.some(u => u.id === checkId || (u.url && u.url.includes(checkId)))) { finalUrls.push(url); }
+                let checkId = url.split('/').pop() || url;
+                if (!usersData.some(u => u.id === checkId || (u.url && u.url.toLowerCase() === url.toLowerCase()))) { finalUrls.push(url); }
             }
             if (finalUrls.length === 0) return showToast("Все пользователи уже в базе!", "warning");
             
             for (let url of finalUrls) {
-                let checkId = url;
-                if (url.includes("steamcommunity.com/profiles/")) checkId = url.split("profiles/")[1].replace('/', '');
-                else if (url.includes("steamcommunity.com/id/")) checkId = url.split("id/")[1].replace('/', '');
-                let tempId = /^\d{17}$/.test(checkId) ? checkId : "imp_" + Math.random().toString(36).substr(2, 9);
-                pendingUsers.push({ id: tempId, timestamp: Date.now(), name: "Очередь...", avatar: "", url: url, status: 0, hours: "...", inv: "⏳ В очереди...", tb_status: "none", notif: 0, is_checker: 0 });
+                let checkId = url.split('/').pop() || url;
+                pendingUsers.push({ id: checkId, timestamp: Date.now(), name: "Очередь...", avatar: "", url: url, status: 0, hours: "...", inv: "⏳ В очереди...", tb_status: "none", notif: 0, is_checker: 0 });
                 usersData.unshift(pendingUsers[pendingUsers.length-1]);
             }
             
@@ -652,12 +649,9 @@
             const input = document.getElementById('checker-input').value.trim();
             if (!input) return;
             const isSteam = input.includes("steamcommunity.com") || /^\d{17}$/.test(input);
-            if (!isSteam) { showToast("❌ Введите Steam ссылку или ID64!", "error"); return; }
+            if (!isSteam) { showToast("❌ Введи Steam ссылку или ID64!", "error"); return; }
             
-            let checkId = input;
-            if (input.includes("steamcommunity.com/profiles/")) checkId = input.split("profiles/")[1].replace('/', '');
-            else if (input.includes("steamcommunity.com/id/")) checkId = input.split("id/")[1].replace('/', '');
-            
+            let checkId = input.split('/').pop() || input;
             let chkId = `chk_${checkId}`;
             pendingUsers.push({ id: chkId, timestamp: Date.now(), name: "Загрузка...", avatar: "", url: input, status: 0, hours: "...", inv: "⏳ Сканирую...", tb_status: "none", notif: 0, is_checker: 1 });
             usersData.unshift(pendingUsers[pendingUsers.length-1]);
@@ -847,7 +841,8 @@
             if (!idToDelete) return;
             tg.showConfirm("Удалить пользователя из базы?", passed => {
                 if (passed) {
-                    pendingDeletes.add(idToDelete); 
+                    deletedUserIds.add(idToDelete); 
+                    localStorage.setItem('deletedUserIds', JSON.stringify([...deletedUserIds])); 
                     usersData = usersData.filter(u => u.id !== idToDelete);
                     filterList(true); if (!targetId) showList();
                     sendSilentCommand({ action: "delete", steam_id: idToDelete }, "Пользователь удален ❌", 1500);

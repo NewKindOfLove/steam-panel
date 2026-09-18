@@ -22,7 +22,6 @@ STEAM_API_KEYS = [
     "354B4A89A071C82E0213772519B80AAA"
 ]
 
-ADMIN_ID = 6739835571  # 🔴 СТРОГО ТВОЯ ЛИЧКА (БОТ ПИШЕТ ТОЛЬКО СЮДА)
 DB_NAME = "steam_users.db"
 WEB_APP_URL = "https://newkindoflove.github.io/steam-panel/index.html" 
 
@@ -36,15 +35,22 @@ TG_CMD = None
 
 needs_sync = False
 
-# --- 1 ЕДИНСТВЕННОЕ ЖЕЛЕЗНОЕ СООБЩЕНИЕ В ЛИЧКЕ БОТА ---
+# --- УМНЫЙ ЖУРНАЛ УВЕДОМЛЕНИЙ В ОДНО СООБЩЕНИЕ (ТОЛЬКО ЛИЧКА) ---
 async def send_alert(text):
     now = datetime.now().strftime("%d.%m %H:%M:%S")
     log_line = f"[{now}] {text}"
     
     async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
-        async with db.execute("SELECT value FROM settings WHERE key='notif_history'") as cursor:
+        # Узнаем личный ID админа из базы (сохраняется при команде /start)
+        async with db.execute("SELECT value FROM settings WHERE key='admin_dm_id'") as cursor:
             row = await cursor.fetchone()
-        history = json.loads(row[0]) if row else []
+        if not row:
+            return # Если админ еще не написал /start, бот молчит
+        admin_dm_id = int(row[0])
+        
+        async with db.execute("SELECT value FROM settings WHERE key='notif_history'") as cursor:
+            hist_row = await cursor.fetchone()
+        history = json.loads(hist_row[0]) if hist_row else []
         
         history.insert(0, log_line)
         if len(history) > 15: history = history[:15]
@@ -61,15 +67,15 @@ async def send_alert(text):
     try:
         if notif_msg_id:
             try:
-                await bot.edit_message_text(full_text, chat_id=ADMIN_ID, message_id=notif_msg_id, parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
+                await bot.edit_message_text(full_text, chat_id=admin_dm_id, message_id=notif_msg_id, parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
             except Exception as e:
                 if "message is not modified" not in str(e).lower():
-                    msg = await bot.send_message(ADMIN_ID, full_text, parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
+                    msg = await bot.send_message(admin_dm_id, full_text, parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
                     async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
                         await db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('notif_msg_id', ?)", (str(msg.message_id),))
                         await db.commit()
         else:
-            msg = await bot.send_message(ADMIN_ID, full_text, parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
+            msg = await bot.send_message(admin_dm_id, full_text, parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
             async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
                 await db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('notif_msg_id', ?)", (str(msg.message_id),))
                 await db.commit()
@@ -268,7 +274,7 @@ async def get_inventory_cs2(session, steam_id):
     
     return "Неизвестно ⚠️"
 
-# --- ОСНОВНОЙ ЦИКЛ ОБРАБОТКИ (С ЗАЩИТОЙ ОТ ОШИБОК) ---
+# --- ОСНОВНОЙ ЦИКЛ ОБРАБОТКИ (ТУРБО-СКОРОСТЬ И ЗАЩИТА ОТ КРАШЕЙ) ---
 async def poll_commands():
     if not TG_TOKEN: return
     try:
@@ -302,8 +308,9 @@ async def poll_commands():
                                 try:
                                     profile = await get_steam_profile(session, sid)
                                     if profile:
-                                        hrs = await get_cs_hours(session, sid)
-                                        inv = await get_inventory_cs2(session, sid)
+                                        hrs_task = get_cs_hours(session, sid)
+                                        inv_task = get_inventory_cs2(session, sid)
+                                        hrs, inv = await asyncio.gather(hrs_task, inv_task)
                                         return (profile.get('personastate', 0), profile.get('gameextrainfo', ''), hrs, inv, profile.get('personaname', 'User'), profile.get('avatarfull', ''), sid)
                                 except Exception: pass
                                 return None
@@ -322,8 +329,10 @@ async def poll_commands():
                         elif action == "force_update_single":
                             profile = await get_steam_profile(session, steam_id)
                             if profile:
-                                cs_hours = await get_cs_hours(session, steam_id)
-                                inv_val = await get_inventory_cs2(session, steam_id)
+                                hrs_task = get_cs_hours(session, steam_id)
+                                inv_task = get_inventory_cs2(session, steam_id)
+                                cs_hours, inv_val = await asyncio.gather(hrs_task, inv_task)
+                                
                                 await db.execute("""
                                     UPDATE users SET last_status=?, last_game=?, cs_hours=?, inv_value=?, name=?, avatar=? WHERE steam_id=?
                                 """, (profile.get('personastate', 0), profile.get('gameextrainfo', ''), cs_hours, inv_val, profile.get('personaname', 'User'), profile.get('avatarfull', ''), steam_id))
@@ -341,21 +350,23 @@ async def poll_commands():
                                     status = profile.get('personastate', 0) if profile else 0
                                     real_url = profile.get('profileurl', url) if profile else url
                                     
-                                    cs_hours = await get_cs_hours(session, new_steam_id)
-                                    inv_cs = await get_inventory_cs2(session, new_steam_id)
+                                    hrs_task = get_cs_hours(session, new_steam_id)
+                                    inv_task = get_inventory_cs2(session, new_steam_id)
+                                    cs_hours, inv_cs = await asyncio.gather(hrs_task, inv_task)
+                                    
                                     chk_id = f"chk_{new_steam_id}"
                                     await db.execute("""
-                                        INSERT OR IGNORE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date)
+                                        INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date)
                                         VALUES (?, ?, ?, ?, ?, ?, ?, 1, '')
                                     """, (chk_id, name, avatar, real_url, status, cs_hours, inv_cs))
                                 else:
                                     chk_id = f"chk_{url.split('/')[-1]}"
                                     await db.execute("""
-                                        INSERT OR IGNORE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date)
+                                        INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date)
                                         VALUES (?, ?, ?, ?, ?, ?, ?, 1, '')
                                     """, (chk_id, "❌ Не найдено", "", url, 0, "...", "Ошибка"))
-                            except Exception as e:
-                                logging.error(f"Checker error: {e}")
+                            except Exception:
+                                pass
                             await db.commit()
                             await trigger_sync()
 
@@ -376,8 +387,10 @@ async def poll_commands():
                                     status = profile.get('personastate', 0) if profile else 0
                                     real_url = profile.get('profileurl', url) if profile else url
                                     
-                                    hrs = await get_cs_hours(session, sid)
-                                    inv = await get_inventory_cs2(session, sid)
+                                    hrs_task = get_cs_hours(session, sid)
+                                    inv_task = get_inventory_cs2(session, sid)
+                                    hrs, inv = await asyncio.gather(hrs_task, inv_task)
+                                    
                                     return (sid, real_url, name, avatar, status, hrs, inv)
                                 except Exception as e:
                                     fallback_id = url.split('/')[-1] if '/' in url else url
@@ -390,18 +403,16 @@ async def poll_commands():
                                 
                                 chunk_added = 0
                                 for res in results:
-                                    try:
-                                        sid, real_url, name, avatar, status, hrs, inv = res
-                                        async with db.execute("SELECT steam_id FROM users WHERE steam_id = ?", (sid,)) as cursor:
-                                            if await cursor.fetchone(): continue
-                                            
-                                        await db.execute("""
-                                            INSERT OR IGNORE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications, device_name)
-                                            VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, '')
-                                        """, (sid, name, avatar, real_url, status, hrs, inv, current_date))
-                                        chunk_added += 1
-                                    except Exception as e:
-                                        logging.error(f"Error adding batch user: {e}")
+                                    sid, real_url, name, avatar, status, hrs, inv = res
+                                    
+                                    async with db.execute("SELECT steam_id FROM users WHERE steam_id = ?", (sid,)) as cursor:
+                                        if await cursor.fetchone(): continue
+                                        
+                                    await db.execute("""
+                                        INSERT INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications, device_name)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, '')
+                                    """, (sid, name, avatar, real_url, status, hrs, inv, current_date))
+                                    chunk_added += 1
                                     
                                 added_count += chunk_added
                                 if chunk_added > 0:
@@ -419,7 +430,7 @@ async def poll_commands():
                                 if not new_steam_id:
                                     fallback_id = url.split('/')[-1] if '/' in url else url
                                     await db.execute("""
-                                        INSERT OR IGNORE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications, device_name)
+                                        INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications, device_name)
                                         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, '')
                                     """, (fallback_id, "❌ Ошибка ссылки", "", url, 0, "...", "Ошибка", current_date))
                                 else:
@@ -431,17 +442,18 @@ async def poll_commands():
                                             status = profile.get('personastate', 0) if profile else 0
                                             real_url = profile.get('profileurl', url) if profile else url
                                             
-                                            cs_hours = await get_cs_hours(session, new_steam_id)
-                                            inv_val = await get_inventory_cs2(session, new_steam_id)
+                                            hrs_task = get_cs_hours(session, new_steam_id)
+                                            inv_task = get_inventory_cs2(session, new_steam_id)
+                                            cs_hours, inv_val = await asyncio.gather(hrs_task, inv_task)
                                             
                                             await db.execute("""
-                                                INSERT OR IGNORE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications, device_name)
+                                                INSERT INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications, device_name)
                                                 VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, '')
                                             """, (new_steam_id, name, avatar, real_url, status, cs_hours, inv_val, current_date))
                             except Exception as e:
                                 fallback_id = url.split('/')[-1] if '/' in url else url
                                 await db.execute("""
-                                    INSERT OR IGNORE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications, device_name)
+                                    INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications, device_name)
                                     VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, '')
                                 """, (fallback_id, "❌ Ошибка / Таймаут", "", url, 0, "...", "Ошибка", current_date))
                             
@@ -497,9 +509,14 @@ async def cmd_start(message: Message):
     if message.chat.type != "private":
         return await message.answer("❌ Панель доступна только в личных сообщениях с ботом!")
         
+    # БОТ НАМЕРТВО ЗАПОМИНАЕТ ТВОЮ ЛИЧКУ ПРИ НАЖАТИИ /start
+    async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
+        await db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('admin_dm_id', ?)", (str(message.chat.id),))
+        await db.commit()
+        
     final_url = f"{WEB_APP_URL}?t={TG_TOKEN}&d={TG_DB}&c={TG_CMD}"
     kb = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🌐 Открыть панель", web_app=WebAppInfo(url=final_url))]], resize_keyboard=True, is_persistent=True)
-    await message.answer("✅ Панель готова. Жми кнопку!", reply_markup=kb)
+    await message.answer("✅ Панель готова. Все логи теперь будут приходить ТОЛЬКО в этот чат!", reply_markup=kb)
 
 async def check_timers():
     changed = False
@@ -556,8 +573,9 @@ async def check_statuses():
                 force_inv_check = ("⚠️" in str(old_inv_val))
 
                 if current_status != last_status or current_game != last_game or name_changed or avatar_changed or force_inv_check:
-                    cs_hours = await get_cs_hours(session, steam_id)
-                    inv_val = await get_inventory_cs2(session, steam_id)
+                    hrs_task = get_cs_hours(session, steam_id)
+                    inv_task = get_inventory_cs2(session, steam_id)
+                    cs_hours, inv_val = await asyncio.gather(hrs_task, inv_task)
                     
                     if current_status == last_status and current_game == last_game and not name_changed and not avatar_changed and inv_val == old_inv_val:
                         await asyncio.sleep(0.5)
@@ -597,12 +615,12 @@ async def main():
     scheduler.add_job(sync_task, "interval", seconds=5)
     scheduler.start()
     
-    await send_alert("🟢 <b>Бот запущен и мониторинг активен!</b>")
+    await send_alert("🟢 Бот запущен!")
 
     try:
         await dp.start_polling(bot)
     finally:
-        await send_alert("🔴 <b>Бот остановлен!</b>")
+        await send_alert("🔴 Бот выключен!")
         await bot.session.close()
 
 if __name__ == "__main__":

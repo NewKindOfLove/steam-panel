@@ -24,12 +24,7 @@ STEAM_API_KEYS = [
 
 ADMIN_ID = 6739835571  
 DB_NAME = "steam_users.db"
-# ЖЕСТКАЯ ССЫЛКА С УКАЗАНИЕМ ФАЙЛА INDEX.HTML
 WEB_APP_URL = "https://newkindoflove.github.io/steam-panel/index.html" 
-
-GROUP_ID = -1003937921596
-TOPIC_SYSTEM = 3 
-TOPIC_LOGS = 12
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -41,16 +36,46 @@ TG_CMD = None
 
 needs_sync = False
 
-async def send_alert(text, is_system=False, **kwargs):
-    chat = GROUP_ID if GROUP_ID else ADMIN_ID
-    topic = TOPIC_SYSTEM if is_system else TOPIC_LOGS
+# --- УМНЫЙ ЖУРНАЛ УВЕДОМЛЕНИЙ В ОДНО СООБЩЕНИЕ ---
+async def send_alert(text):
+    chat_id = ADMIN_ID
+    now = datetime.now().strftime("%d.%m %H:%M:%S")
+    log_line = f"[{now}] {text}"
+    
+    async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
+        async with db.execute("SELECT value FROM settings WHERE key='notif_history'") as cursor:
+            row = await cursor.fetchone()
+        history = json.loads(row[0]) if row else []
+        
+        history.insert(0, log_line)
+        if len(history) > 15: history = history[:15]
+            
+        await db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('notif_history', ?)", (json.dumps(history),))
+        
+        async with db.execute("SELECT value FROM settings WHERE key='notif_msg_id'") as cursor:
+            msg_row = await cursor.fetchone()
+        notif_msg_id = int(msg_row[0]) if msg_row else None
+        await db.commit()
+
+    full_text = "<b>⚙️ ПАНЕЛЬ УПРАВЛЕНИЯ | ЛОГИ</b>\n\n" + "\n\n".join(history)
+    
     try:
-        if GROUP_ID and topic:
-            await bot.send_message(chat, text, message_thread_id=topic, **kwargs)
+        if notif_msg_id:
+            try:
+                await bot.edit_message_text(full_text, chat_id=chat_id, message_id=notif_msg_id, parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
+            except Exception as e:
+                if "message is not modified" not in str(e).lower():
+                    msg = await bot.send_message(chat_id, full_text, parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
+                    async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
+                        await db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('notif_msg_id', ?)", (str(msg.message_id),))
+                        await db.commit()
         else:
-            await bot.send_message(ADMIN_ID, text, **kwargs)
+            msg = await bot.send_message(chat_id, full_text, parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
+            async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
+                await db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('notif_msg_id', ?)", (str(msg.message_id),))
+                await db.commit()
     except Exception as e:
-        logging.error(f"Не удалось отправить уведомление: {e}")
+        logging.error(f"Send alert error: {e}")
 
 async def telegraph_request(method, **kwargs):
     async with aiohttp.ClientSession() as session:
@@ -60,9 +85,7 @@ async def telegraph_request(method, **kwargs):
 async def init_telegraph():
     global TG_TOKEN, TG_DB, TG_CMD
     async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
-        # ВКЛЮЧАЕМ WAL МОД (БАЗА БОЛЬШЕ НИКОГДА НЕ ЗАВИСНЕТ ОТ ПОТОКА ДАННЫХ)
         await db.execute("PRAGMA journal_mode=WAL;")
-        
         await db.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
         await db.execute("""
             CREATE TABLE IF NOT EXISTS users (
@@ -82,6 +105,8 @@ async def init_telegraph():
         try: await db.execute("ALTER TABLE users ADD COLUMN is_checker INTEGER DEFAULT 0")
         except: pass
         try: await db.execute("ALTER TABLE users ADD COLUMN log_number TEXT DEFAULT ''")
+        except: pass
+        try: await db.execute("ALTER TABLE users ADD COLUMN device_name TEXT DEFAULT ''")
         except: pass
         
         await db.execute("DELETE FROM users WHERE is_checker = 1")
@@ -124,12 +149,12 @@ async def sync_to_cloud():
     try:
         users_list = []
         async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
-            async with db.execute("SELECT steam_id, name, avatar, profile_url, last_status, last_game, note, cs_hours, inv_value, notifications, tb_status, tb_time, added_date, is_checker, log_number FROM users") as cursor:
+            async with db.execute("SELECT steam_id, name, avatar, profile_url, last_status, last_game, note, cs_hours, inv_value, notifications, tb_status, tb_time, added_date, is_checker, log_number, device_name FROM users") as cursor:
                 for u in await cursor.fetchall():
                     users_list.append({
                         "id": u[0], "name": u[1], "avatar": u[2], "url": u[3], "status": u[4], "game": u[5], 
                         "note": u[6], "hours": u[7], "inv": u[8], "notif": u[9], "tb_status": u[10], "tb_time": u[11],
-                        "added_date": u[12], "is_checker": u[13], "log": u[14]
+                        "added_date": u[12], "is_checker": u[13], "log": u[14], "device": u[15]
                     })
         
         json_str = json.dumps(users_list, separators=(',', ':'))
@@ -330,7 +355,7 @@ async def poll_commands():
                                         INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date)
                                         VALUES (?, ?, ?, ?, ?, ?, ?, 1, '')
                                     """, (chk_id, "❌ Не найдено", "", url, 0, "...", "Ошибка"))
-                                    await send_alert(f"❌ Чекер: Неверная ссылка ({url})", is_system=True)
+                                    await send_alert(f"❌ Чекер: Неверная ссылка ({url})")
                             except Exception:
                                 pass
                             await db.commit()
@@ -385,7 +410,7 @@ async def poll_commands():
                                 await asyncio.sleep(1)
 
                             if added_count > 0:
-                                await send_alert(f"✅ Массовый импорт завершен: добавлено {added_count} пользователей!", parse_mode="HTML")
+                                await send_alert(f"✅ Массовый импорт: добавлено {added_count} профилей.")
 
                         elif action == "add_user":
                             url = data.get("url", "").strip()
@@ -420,6 +445,11 @@ async def poll_commands():
                                     VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0)
                                 """, (fallback_id, "❌ Ошибка / Таймаут", "", url, 0, "...", "Ошибка", current_date))
                             
+                            await db.commit()
+                            await trigger_sync()
+
+                        elif action == "update_device":
+                            await db.execute("UPDATE users SET device_name = ? WHERE steam_id = ?", (data.get("device", ""), steam_id))
                             await db.commit()
                             await trigger_sync()
 
@@ -481,7 +511,7 @@ async def check_timers():
         for ban in ready_bans:
             steam_id, name, url, status = ban
             approx_str = " (примерно)" if status == "ban_approx" else ""
-            await send_alert(f"🔓 <b>РАЗБЛОКИРОВКА!</b>\nУ пользователя <a href='{url}'>{name}</a> разбанились предметы{approx_str}! Можно снимать.", parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
+            await send_alert(f"🔓 <b>РАЗБЛОКИРОВКА!</b> У пользователя <a href='{url}'>{name}</a> разбанились предметы{approx_str}!")
             await db.execute("UPDATE users SET tb_status = 'ready', tb_time = 0 WHERE steam_id = ?", (steam_id,))
             changed = True
             
@@ -490,7 +520,7 @@ async def check_timers():
             
         for snat in ready_snats:
             steam_id, name, url = snat
-            await send_alert(f"💸 Пользователь <a href='{url}'>{name}</a> - разбанился!", parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
+            await send_alert(f"💸 Пользователь <a href='{url}'>{name}</a> - разбанился!")
             await db.execute("UPDATE users SET tb_status = 'unbanned', tb_time = 0 WHERE steam_id = ?", (steam_id,))
             changed = True
 
@@ -541,18 +571,18 @@ async def check_statuses():
                     await asyncio.sleep(0.5)
 
                 if notif_on:
-                    if name_changed: await send_alert(f"🔄 Пользователь <b>{old_name}</b> сменил ник на {user_link}!", parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
+                    if name_changed: await send_alert(f"🔄 Пользователь <b>{old_name}</b> сменил ник на {user_link}!")
                     if all_notifs:
-                        if avatar_changed: await send_alert(f"🖼 Пользователь {user_link} обновил аватарку!", parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
+                        if avatar_changed: await send_alert(f"🖼 Пользователь {user_link} обновил аватарку!")
                         if current_game != last_game:
-                            if current_game: await send_alert(f"🎮 {user_link} зашел в {current_game}!", parse_mode="HTML", disable_notification=True, link_preview_options=LinkPreviewOptions(is_disabled=True))
-                            elif last_game: await send_alert(f"⏹ {user_link} вышел из игры.", parse_mode="HTML", disable_notification=True, link_preview_options=LinkPreviewOptions(is_disabled=True))
+                            if current_game: await send_alert(f"🎮 {user_link} зашел в {current_game}!")
+                            elif last_game: await send_alert(f"⏹ {user_link} вышел из игры.")
                     if current_status != last_status:
                         if current_status == 0: msg = f"🔴 {user_link} теперь оффлайн"
                         elif current_status == 1: msg = f"🟢 {user_link} теперь в сети"
                         elif current_status in [2, 3, 4]: msg = f"🟡 {user_link} отошел/не беспокоить"
                         else: continue
-                        await send_alert(msg, parse_mode="HTML", disable_notification=True, link_preview_options=LinkPreviewOptions(is_disabled=True))
+                        await send_alert(msg)
             except Exception:
                 continue
     if changed: await trigger_sync()
@@ -567,41 +597,12 @@ async def main():
     scheduler.add_job(sync_task, "interval", seconds=5)
     scheduler.start()
     
-    status_text_online = "<b>СТАТУС БОТА:</b> 🟢 РАБОТАЕТ"
-    try:
-        async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
-            async with db.execute("SELECT value FROM settings WHERE key='status_msg_id'") as cursor:
-                row = await cursor.fetchone()
-                
-        if row:
-            status_msg_id = int(row[0])
-            try:
-                await bot.edit_message_text(status_text_online, chat_id=GROUP_ID, message_id=status_msg_id, parse_mode="HTML")
-            except Exception:
-                msg = await bot.send_message(GROUP_ID, status_text_online, message_thread_id=TOPIC_SYSTEM, parse_mode="HTML")
-                async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
-                    await db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('status_msg_id', ?)", (str(msg.message_id),))
-                    await db.commit()
-        else:
-            msg = await bot.send_message(GROUP_ID, status_text_online, message_thread_id=TOPIC_SYSTEM, parse_mode="HTML")
-            async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
-                await db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('status_msg_id', ?)", (str(msg.message_id),))
-                await db.commit()
-    except Exception as e:
-        logging.error(f"Failed to set online status: {e}")
+    await send_alert("🟢 <b>Бот запущен и мониторинг активен!</b>")
 
     try:
         await dp.start_polling(bot)
     finally:
-        status_text_offline = "<b>СТАТУС БОТА:</b> 🔴 ОТКЛЮЧЕН"
-        try:
-            async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
-                async with db.execute("SELECT value FROM settings WHERE key='status_msg_id'") as cursor:
-                    row = await cursor.fetchone()
-            if row:
-                status_msg_id = int(row[0])
-                await bot.edit_message_text(status_text_offline, chat_id=GROUP_ID, message_id=status_msg_id, parse_mode="HTML")
-        except Exception: pass
+        await send_alert("🔴 <b>Бот остановлен!</b>")
         await bot.session.close()
 
 if __name__ == "__main__":

@@ -1,914 +1,609 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Steam Panel</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <style>
-        body { background-color: #0f0f0f; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0 auto; padding: 0; width: 100%; min-height: 100vh; max-width: 800px; box-sizing: border-box; }
-        .container { padding: 15px; display: none; } .active-view { display: block; }
-        
-        .top-bar { display: flex; gap: 8px; margin-bottom: 15px; align-items: stretch; }
-        .top-bar input { flex-grow: 1; padding: 10px; border-radius: 8px; background-color: #1e1e1e; color: #7f91a4; border: 1px solid #333333; outline: none; font-size: 14px; box-sizing: border-box; font-weight: bold; }
-        
-        .sq-btn { width: 42px; height: 42px; border-radius: 8px; border: 1px solid #333333; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; cursor: pointer; background-color: #252525; color: #ffffff; transition: 0.2s; flex-shrink: 0;}
-        .sq-btn:active { opacity: 0.7; transform: scale(0.95); background-color: #333333; } 
-        .btn-secondary { background-color: #252525; color: #ffffff; } 
-        
-        .user-list { display: flex; flex-direction: column; gap: 10px; }
-        .user-item { display: flex; align-items: center; padding: 10px 10px 28px 10px; background-color: #1e1e1e; border: 1px solid #2a2a2a; border-radius: 10px; cursor: pointer; position: relative; min-height: 50px; }
-        .avatar-container { position: relative; margin-right: 15px; }
-        .avatar-small { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; display: block;}
-        
-        .status-badge { position: absolute; bottom: -2px; right: -2px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #1e1e1e; display: none; }
-        .bg-online { background-color: #4CAF50; display: block; } 
-        .bg-ingame { background-color: #7FFF00; display: block; box-shadow: 0 0 8px #7FFF00;} 
-        .bg-away { background-color: #FFC107; display: block; }
-        
-        .user-info-short { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; overflow: hidden; margin-right: 25px; margin-top: -4px;} 
-        .user-name-text { font-size: 15px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; }
-        .user-inv-text { font-size: 12px; font-weight: bold; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        
-        .device-badge { color: #888888; font-size: 11px; font-weight: normal; background-color: #1a1a1a; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; cursor: pointer; transition: 0.2s; border: 1px solid #2a2a2a; margin-top: 5px;}
-        .device-badge:active { background-color: #333333; color: #ffffff; }
+import asyncio
+import logging
+import re
+import json
+import time
+import random
+from datetime import datetime
+from aiogram import Bot, Dispatcher
+from aiogram.types import (
+    Message, LinkPreviewOptions, ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
+)
+from aiogram.filters import Command
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+import aiohttp
+import aiosqlite
 
-        .bell-icon { font-size: 16px; padding: 5px; cursor: pointer; position: absolute; top: 4px; right: 4px; }
-        .tb-status-text { position: absolute; bottom: 8px; right: 12px; font-size: 11px; font-weight: bold; letter-spacing: 0.3px; }
+# --- КОНФИГУРАЦИЯ ---
+BOT_TOKEN = "8858053496:AAEDHlFV4HBVa9bXCdEdiYTGYkFFBxPWgcU"
+STEAM_API_KEYS = [
+    "58078C086C8EB81A26316C824EBBF452",
+    "AA7E37631CE33F6D2E802B87B9438C5F",
+    "354B4A89A071C82E0213772519B80AAA"
+]
 
-        .nav-bar { display: flex; justify-content: space-between; margin-bottom: 20px; }
-        .card-header { display: flex; flex-direction: column; align-items: center; text-align: center; margin-bottom: 20px; }
-        .avatar-big { width: 100px; height: 100px; border-radius: 50%; margin-bottom: 10px; border: 3px solid #333333; object-fit: cover; }
-        .card-name { font-size: 22px; font-weight: bold; margin-bottom: 5px; }
-        .card-id-text { font-size: 13px; color: #888888; margin-bottom: 3px; }
-        
-        .clickable-id { color: #64b5f6; cursor: pointer; text-decoration: underline; }
-        .clickable-id:active { opacity: 0.7; }
-        
-        .clickable-log { color: #888888; font-size: 10px; font-weight: normal; margin-left: 4px; cursor: pointer; padding: 2px 4px; border-radius: 4px; transition: 0.2s; }
-        .clickable-log:active { background-color: #333333; color: #ffffff; }
+ADMIN_ID = 6739835571  
+DB_NAME = "steam_users.db"
+WEB_APP_URL = "https://newkindoflove.github.io/steam-panel/index.html" 
 
-        .id-badge { color: #888888; font-size: 11px; font-weight: normal; margin-left: 6px; cursor: pointer; padding: 2px 4px; border-radius: 4px; transition: 0.2s; }
-        .id-badge:active { background-color: #333333; color: #ffffff; }
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher()
+scheduler = AsyncIOScheduler()
 
-        .card-stats { background-color: #1e1e1e; border: 1px solid #2a2a2a; padding: 15px; border-radius: 10px; margin-bottom: 15px; position: relative;}
-        .stat-row { display: flex; justify-content: space-between; margin-bottom: 8px; align-items: center;} .stat-row:last-child { margin-bottom: 0; } .stat-value { font-weight: bold; text-align:right;}
-        
-        select { background-color: #151515; color: #ffffff; border: 1px solid #333333; border-radius: 5px; padding: 5px; outline: none; font-weight: bold; font-size: 13px; box-sizing: border-box;}
-        .date-sel { width: 55px; text-align: center; }
-        .snat-input { padding: 4px; border-radius: 5px; background-color: #151515; color: white; border: 1px solid #333333; outline: none; text-align: center; font-size: 14px; box-sizing: border-box;}
-        input[type="time"]::-webkit-calendar-picker-indicator { display: none; -webkit-appearance: none; } input[type="time"] { -moz-appearance: textfield; }
+TG_TOKEN = None
+TG_DB = None
+TG_CMD = None
 
-        .param-box { background-color: #151515; padding: 12px; border-radius: 8px; margin-top:10px; display:none; flex-direction:column; gap:12px; border: 1px solid #2a2a2a; }
-        .param-header { display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid #2a2a2a; padding-bottom: 8px; }
-        .param-title { font-weight:bold; color:#64b5f6; font-size:13px; max-width: 120px; line-height: 1.2; }
-        .param-radios { font-size:12px; font-weight:bold; display: flex; gap: 10px; align-items: center;}
-        .param-radios label { cursor:pointer; display: flex; align-items: center; gap: 4px;}
-        
-        .param-inputs-wrap { display:flex; justify-content:flex-start; gap:8px; align-items:flex-end; }
-        .input-group { display:flex; flex-direction:column; align-items:center; }
-        .input-label { font-size:10px; color:#888888; margin-bottom:4px; font-weight: bold; text-transform: uppercase; }
+needs_sync = False
 
-        textarea { width: 100%; box-sizing: border-box; padding: 10px; background-color: #1e1e1e; color: #ffffff; border: 1px solid #333333; border-radius: 8px; min-height: 80px; resize: none; font-family: inherit; margin-bottom: 15px; }
+async def send_alert(text):
+    chat_id = ADMIN_ID
+    now = datetime.now().strftime("%d.%m %H:%M:%S")
+    log_line = f"[{now}] {text}"
+    
+    async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
+        async with db.execute("SELECT value FROM settings WHERE key='notif_history'") as cursor:
+            row = await cursor.fetchone()
+        history = json.loads(row[0]) if row else []
         
-        .setting-row { display: flex; justify-content: space-between; align-items: center; background-color: #1e1e1e; border: 1px solid #2a2a2a; padding: 15px; border-radius: 10px; margin-bottom: 15px; }
-        .switch { position: relative; display: inline-block; width: 40px; height: 24px; } .switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #e53935; transition: .4s; border-radius: 24px; }
-        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
-        input:checked + .slider { background-color: #4CAF50; } input:checked + .slider:before { transform: translateX(16px); }
-        
-        #toast { visibility: hidden; min-width: 200px; background-color: #1e1e1e; color: #ffffff; border-left: 5px solid #5288c1; text-align: left; border-radius: 6px; padding: 12px 15px; position: fixed; z-index: 1000; left: 50%; bottom: 20px; transform: translateX(-50%); font-size: 14px; opacity: 1; transition: bottom 0.3s; box-shadow: 0 5px 15px rgba(0,0,0,0.8); font-weight: bold;}
-        #toast.show { visibility: visible; bottom: 30px; }
-        #toast.success { border-left-color: #4CAF50; }
-        #toast.warning { border-left-color: #FFC107; }
-        #toast.error { border-left-color: #F44336; }
-        #toast.info { border-left-color: #5288c1; }
-        
-        #pagination-controls { display:flex; justify-content:center; gap: 5px; margin-top: 15px; flex-wrap: wrap; }
-    </style>
-</head>
-<body>
-    <div id="toast">Уведомление</div>
-
-    <!-- 1. СПИСОК И ГЛАВНОЕ МЕНЮ -->
-    <div class="container active-view" id="list-view">
-        <div class="top-bar">
-            <input type="text" id="new-user-input" placeholder="ID, LINK OR USERLINK (0)">
-            <button id="btn-add-user" class="sq-btn btn-secondary" onclick="addUserFromInput()" style="color: #a8b5c2;">➕</button>
-            <button id="btn-global-refresh" class="sq-btn btn-secondary" onclick="manualRefresh()">⟳</button>
-        </div>
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px; gap: 8px;">
-            <div style="display: flex; gap: 8px; flex-grow: 1;">
-                <select id="sort-select" style="flex: 1; min-width: 0;" onchange="filterList(true)">
-                    <option value="default">Сначала новые</option>
-                    <option value="inv_desc">По цене ($)</option>
-                    <option value="tb_asc">По разбану ⏳</option>
-                    <option value="param">По параметру 📌</option>
-                </select>
-                <select id="param-select" style="flex: 1; display: none; min-width: 0;" onchange="filterList(true)">
-                    <option value="ban">Трейдбан</option>
-                    <option value="ready">Можно снимать</option>
-                    <option value="snat">Снят</option>
-                    <option value="snat_work">Снят + ВЕД</option>
-                    <option value="snat_vac">Снят + ВАК</option>
-                    <option value="unbanned">Разбанился</option>
-                </select>
-            </div>
+        history.insert(0, log_line)
+        if len(history) > 15: history = history[:15]
             
-            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 4px;">
-                <div id="bot-dot" style="width: 8px; height: 8px; border-radius: 50%; background-color: #F44336; box-shadow: 0 0 6px #F44336; margin-bottom: 3px; transition: 0.3s;"></div>
-                <span style="font-size: 9px; font-weight: bold; color: #7f91a4; line-height: 1;">BOT</span>
-            </div>
-
-            <button class="sq-btn btn-secondary" style="font-size:16px; flex-shrink:0;" onclick="switchView('checker-view')">🔍</button>
-            <button class="sq-btn btn-secondary" style="font-size:16px; flex-shrink:0;" onclick="switchView('settings-view')">⚙️</button>
-        </div>
+        await db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('notif_history', ?)", (json.dumps(history),))
         
-        <div class="user-list" id="users-container">Ожидание данных...</div>
-        <div id="hidden-count" style="text-align: center; color: #888888; font-size: 12px; margin-top: 10px; display: none; font-style: italic;"></div>
-        
-        <div id="pagination-controls"></div>
-    </div>
+        async with db.execute("SELECT value FROM settings WHERE key='notif_msg_id'") as cursor:
+            msg_row = await cursor.fetchone()
+        notif_msg_id = int(msg_row[0]) if msg_row else None
+        await db.commit()
 
-    <!-- 2. ОКНО ЧЕКЕРА ИНВЕНТАРЕЙ -->
-    <div class="container" id="checker-view">
-        <div class="nav-bar">
-            <button class="sq-btn btn-secondary" onclick="showList()">◀</button>
-            <h3 style="margin:0; align-self:center;">Чекер инвентарей</h3>
-            <div style="width:42px;"></div>
-        </div>
-        <div class="top-bar" style="margin-bottom: 20px;">
-            <input type="text" id="checker-input" placeholder="Steam ссылка или ID">
-            <button id="btn-checker-search" class="sq-btn btn-secondary" onclick="runChecker()">🔍</button>
-        </div>
-        <div id="checker-results" class="user-list">
-            <div style="text-align:center; color:#7f91a4; font-size: 14px; margin-top:20px;">Введи ссылку, чтобы проверить аккаунт.</div>
-        </div>
-    </div>
+    full_text = "<b>⚙️ ПАНЕЛЬ УПРАВЛЕНИЯ | ЛОГИ</b>\n\n" + "\n\n".join(history)
+    
+    try:
+        if notif_msg_id:
+            try:
+                await bot.edit_message_text(full_text, chat_id=chat_id, message_id=notif_msg_id, parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
+            except Exception as e:
+                if "message is not modified" not in str(e).lower():
+                    msg = await bot.send_message(chat_id, full_text, parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
+                    async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
+                        await db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('notif_msg_id', ?)", (str(msg.message_id),))
+                        await db.commit()
+        else:
+            msg = await bot.send_message(chat_id, full_text, parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
+            async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
+                await db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('notif_msg_id', ?)", (str(msg.message_id),))
+                await db.commit()
+    except Exception as e:
+        logging.error(f"Send alert error: {e}")
 
-    <!-- 3. КАРТОЧКА ЮЗЕРА -->
-    <div class="container" id="detail-view">
+async def telegraph_request(method, **kwargs):
+    async with aiohttp.ClientSession() as session:
+        async with session.post(f"https://api.telegra.ph/{method}", data=kwargs) as r:
+            return await r.json()
+
+async def init_telegraph():
+    global TG_TOKEN, TG_DB, TG_CMD
+    async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
+        await db.execute("PRAGMA journal_mode=WAL;")
+        await db.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                steam_id TEXT PRIMARY KEY, name TEXT, avatar TEXT, profile_url TEXT,
+                notifications INTEGER DEFAULT 0, last_status INTEGER DEFAULT 0, last_game TEXT DEFAULT '',
+                note TEXT DEFAULT '', cs_hours TEXT DEFAULT '0', inv_value TEXT DEFAULT 'Скрыто 🔒',
+                tb_status TEXT DEFAULT 'none', tb_time INTEGER DEFAULT 0, added_date TEXT DEFAULT '',
+                is_checker INTEGER DEFAULT 0, log_number TEXT DEFAULT ''
+            )
+        """)
+        try: await db.execute("ALTER TABLE users ADD COLUMN tb_status TEXT DEFAULT 'none'")
+        except: pass
+        try: await db.execute("ALTER TABLE users ADD COLUMN tb_time INTEGER DEFAULT 0")
+        except: pass
+        try: await db.execute("ALTER TABLE users ADD COLUMN added_date TEXT DEFAULT ''")
+        except: pass
+        try: await db.execute("ALTER TABLE users ADD COLUMN is_checker INTEGER DEFAULT 0")
+        except: pass
+        try: await db.execute("ALTER TABLE users ADD COLUMN log_number TEXT DEFAULT ''")
+        except: pass
+        try: await db.execute("ALTER TABLE users ADD COLUMN device_name TEXT DEFAULT ''")
+        except: pass
         
-        <!-- ГАРМОНИЧНЫЙ NAV-BAR СО ВСТРОЕННЫМ ПОЛЕМ ПК -->
-        <div class="nav-bar" style="align-items: center; gap: 8px; margin-bottom: 20px;">
-            <button class="sq-btn btn-secondary" style="flex-shrink: 0;" onclick="showList()">◀</button>
+        await db.execute("DELETE FROM users WHERE is_checker = 1")
+        await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('all_notifs', '1')")
+        await db.commit()
+
+        async with db.execute("SELECT value FROM settings WHERE key='tg_token'") as cursor:
+            row = await cursor.fetchone()
+            if row:
+                TG_TOKEN = row[0]
+                TG_DB = (await (await db.execute("SELECT value FROM settings WHERE key='tg_db'")).fetchone())[0]
+                TG_CMD = (await (await db.execute("SELECT value FROM settings WHERE key='tg_cmd'")).fetchone())[0]
+                return
+
+        res = await telegraph_request("createAccount", short_name="SteamBot", author_name="Bot")
+        TG_TOKEN = res["result"]["access_token"]
+        empty_content = json.dumps([{"tag": "p", "children": ["[]"]}])
+        res_db = await telegraph_request("createPage", access_token=TG_TOKEN, title="DB", content=empty_content)
+        TG_DB = res_db["result"]["path"]
+        res_cmd = await telegraph_request("createPage", access_token=TG_TOKEN, title="CMD", content=empty_content)
+        TG_CMD = res_cmd["result"]["path"]
+
+        await db.execute("INSERT INTO settings (key, value) VALUES ('tg_token', ?)", (TG_TOKEN,))
+        await db.execute("INSERT INTO settings (key, value) VALUES ('tg_db', ?)", (TG_DB,))
+        await db.execute("INSERT INTO settings (key, value) VALUES ('tg_cmd', ?)", (TG_CMD,))
+        await db.commit()
+
+async def trigger_sync():
+    global needs_sync
+    needs_sync = True
+
+async def sync_task():
+    global needs_sync
+    if needs_sync:
+        needs_sync = False
+        await sync_to_cloud()
+
+async def sync_to_cloud():
+    if not TG_TOKEN: return
+    try:
+        users_list = []
+        async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
+            async with db.execute("SELECT steam_id, name, avatar, profile_url, last_status, last_game, note, cs_hours, inv_value, notifications, tb_status, tb_time, added_date, is_checker, log_number, device_name FROM users") as cursor:
+                for u in await cursor.fetchall():
+                    users_list.append({
+                        "id": u[0], "name": u[1], "avatar": u[2], "url": u[3], "status": u[4], "game": u[5], 
+                        "note": u[6], "hours": u[7], "inv": u[8], "notif": u[9], "tb_status": u[10], "tb_time": u[11],
+                        "added_date": u[12], "is_checker": u[13], "log": u[14], "device": u[15]
+                    })
+        
+        json_str = json.dumps(users_list, separators=(',', ':'))
+        chunks = [json_str[i:i+4000] for i in range(0, len(json_str), 4000)]
+        content = json.dumps([{"tag": "p", "children": chunks if chunks else ["[]"]}])
+        res = await telegraph_request("editPage", access_token=TG_TOKEN, path=TG_DB, title="DB", content=content)
+        
+        if not res.get("ok") and "FLOOD_WAIT" in res.get("error", ""):
+            global needs_sync
+            needs_sync = True 
+    except Exception as e:
+        logging.error(f"Sync error: {e}")
+
+def get_key():
+    return random.choice(STEAM_API_KEYS)
+
+async def resolve_vanity_url(session, url_or_id):
+    try:
+        url_or_id = url_or_id.strip().strip('/')
+        if re.match(r'^\d{17}$', url_or_id): return url_or_id
+        
+        vanity_name = url_or_id
+        if "steamcommunity.com/profiles/" in url_or_id:
+            return url_or_id.split("profiles/")[1].split('/')[0]
+        elif "steamcommunity.com/id/" in url_or_id:
+            vanity_name = url_or_id.split("id/")[1].split('/')[0]
             
-            <div style="position: relative; flex-grow: 1;">
-                <input type="text" id="detail-device" placeholder="Название ПК..." style="width: 100%; height: 42px; background-color: #1e1e1e; color: #ffffff; border: 1px solid #333333; border-radius: 8px; padding: 0 40px 0 15px; font-size: 13px; outline: none; box-sizing: border-box; font-weight: bold; text-align: left;">
-                <button id="btn-save-device" onclick="saveDevice()" style="position: absolute; right: 4px; top: 4px; bottom: 4px; width: 34px; background-color: #252525; border: 1px solid #333333; border-radius: 6px; font-size: 14px; color: #ffffff; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s;">💾</button>
-            </div>
+        url = f"http://api.steampowered.com/ISteamUser/ResolveVanityURL/v0001/?key={get_key()}&vanityurl={vanity_name}"
+        async with session.get(url, timeout=5) as response:
+            if response.status == 200:
+                data = await response.json()
+                if data.get('response', {}).get('success') == 1: 
+                    return data['response']['steamid']
+    except Exception: pass
+    return None
 
-            <div style="display:flex; gap: 5px; flex-shrink: 0;">
-                <button class="sq-btn btn-secondary" onclick="deleteUser()">❌</button>
-                <button id="btn-detail-refresh" class="sq-btn btn-secondary" onclick="refreshCurrentUser()">⟳</button>
-            </div>
-        </div>
+async def get_steam_profile(session, steam_id):
+    try:
+        url = f"http://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key={get_key()}&steamids={steam_id}"
+        async with session.get(url, timeout=5) as response:
+            if response.status == 200:
+                data = await response.json()
+                players = data.get('response', {}).get('players', [])
+                if players: return players[0]
+    except Exception: pass
+    return None
 
-        <div class="card-header">
-            <a id="detail-link" href="#" target="_blank"><img id="detail-avatar" class="avatar-big" src=""></a>
-            <div class="card-name" id="detail-name">Имя</div>
-            <div class="card-id-text">ID: <span id="detail-id" class="clickable-id" onclick="copyId(this.innerText)"></span> &nbsp;|&nbsp; Добавлен: <span id="detail-added-date" style="color:#888888;"></span></div>
-        </div>
-        
-        <div class="card-stats">
-            <div class="stat-row"><span>Статус:</span> <span class="stat-value" id="detail-status"></span></div>
-            <div class="stat-row"><span>Часов в CS:</span> <span class="stat-value" id="detail-hours"></span></div>
-            <div class="stat-row"><span>Инвентарь:</span> <span class="stat-value" id="detail-inv"></span></div>
-            
-            <div class="stat-row" style="margin-top: 10px;">
-                <span>Параметр:</span>
-                <div style="display:flex; align-items:center;">
-                    <select id="tradeban-select" onchange="handleTradebanChange()">
-                        <option value="none" style="display:none;">Нет статуса</option>
-                        <option value="ban">Трейдбан</option>
-                        <option value="ready">Можно снимать</option>
-                        <option value="snat">Снят</option>
-                        <option value="unbanned">Разбанился</option>
-                    </select>
-                </div>
-            </div>
-            
-            <div id="ban-ui" class="param-box">
-                <div class="param-header">
-                    <span id="ban-hint" class="param-title">Точная дата конца тб:</span>
-                    <div class="param-radios">
-                        <label><input type="radio" name="ban_type" value="ban_exact" checked onchange="toggleBanUI()"> Точная</label>
-                        <label><input type="radio" name="ban_type" value="ban_approx" onchange="toggleBanUI()"> Примерная</label>
-                    </div>
-                </div>
-                <div class="param-inputs-wrap" id="ban-exact-inputs">
-                    <div class="input-group"><span class="input-label">День</span><select id="ban-day" class="date-sel"></select></div>
-                    <div class="input-group"><span class="input-label">Месяц</span><select id="ban-month" class="date-sel"></select></div>
-                    <div class="input-group" style="margin-left: 5px;"><span class="input-label">Время</span><input type="time" id="ban-time" class="snat-input" step="60" style="width: 55px;"></div>
-                    <button id="btn-save-exact" class="sq-btn btn-secondary" style="width: 32px; height: 32px; font-size: 14px; margin-bottom: 1px; margin-left:auto;" onclick="saveBanExact()">💾</button>
-                </div>
-                <div class="param-inputs-wrap" id="ban-approx-inputs" style="display:none;">
-                    <div class="input-group"><span class="input-label">Дней</span><select id="ban-days" class="date-sel" style="width: 60px;"></select></div>
-                    <button id="btn-save-approx" class="sq-btn btn-secondary" style="width: 32px; height: 32px; font-size: 14px; margin-bottom: 1px; margin-left:auto;" onclick="saveBanApprox()">💾</button>
-                </div>
-            </div>
+async def get_cs_hours(session, steam_id):
+    try:
+        url = f"http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key={get_key()}&steamid={steam_id}"
+        async with session.get(url, timeout=5) as response:
+            if response.status == 200:
+                data = await response.json()
+                for game in data.get('response', {}).get('games', []):
+                    if game.get('appid') == 730: 
+                        return f"{round(game.get('playtime_forever', 0) / 60, 1)} ч."
+    except Exception: pass
+    return "0 ч."
 
-            <div id="snat-ui" class="param-box">
-                <div class="param-header">
-                    <span class="param-title">Время, когда тип был снят:</span>
-                    <div class="param-radios">
-                        <label style="color: #4CAF50;"><input type="radio" name="snat_type" value="snat" checked> Снят</label>
-                        <label style="color: #FFC107;"><input type="radio" name="snat_type" value="snat_work"> Ведение</label>
-                        <label style="color: #F44336;"><input type="radio" name="snat_type" value="snat_vac"> ВАК</label>
-                    </div>
-                </div>
-                <div class="param-inputs-wrap">
-                    <div class="input-group"><span class="input-label">День</span><select id="snat-day" class="date-sel"></select></div>
-                    <div class="input-group"><span class="input-label">Месяц</span><select id="snat-month" class="date-sel"></select></div>
-                    <div class="input-group"><span class="input-label">Время</span><input type="time" id="snat-time" class="snat-input" step="60" style="width: 55px;"></div>
-                    <div class="input-group"><span class="input-label">№ Лога</span><input type="text" id="snat-log" class="snat-input" maxlength="5" pattern="\d*" placeholder="-----" style="width: 55px; font-size: 12px;"></div>
-                    <button id="btn-save-snat" class="sq-btn btn-secondary" style="width: 32px; height: 32px; font-size: 14px; margin-bottom: 1px; margin-left:auto;" onclick="saveSnat()">💾</button>
-                </div>
-            </div>
-        </div>
+async def get_inventory_cs2(session, steam_id):
+    headers = {"User-Agent": "Mozilla/5.0"}
+    items_count = None
+    price_str = None
+    wok_key = "wok_eu68v0uqpZuBa56w8YWlVN57JcWcC8TO"
+    wok_headers = {"Authorization": f"Bearer {wok_key}"}
 
-        <div>
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
-                <label style="font-weight:bold;">Примечание: <span style="font-size:12px; font-weight:normal; color: #888888;">(Enter для сохр.)</span></label>
-                <button id="btn-save-note" class="sq-btn btn-secondary" style="width: 26px; height: 26px; font-size: 14px; border-radius: 6px;" onclick="saveNote()">💾</button>
-            </div>
-            <textarea id="detail-note" placeholder="Введи заметку..."></textarea>
-        </div>
-    </div>
-
-    <!-- 4. НАСТРОЙКИ -->
-    <div class="container" id="settings-view">
-        <div class="nav-bar">
-            <button class="sq-btn btn-secondary" onclick="showList()">◀</button>
-            <h3 style="margin:0; align-self:center;">Настройки</h3>
-            <div style="width:42px;"></div>
-        </div>
-        <div class="setting-row">
-            <div>Колокольчики<br><span style="color:#888888; font-size:11px;">(Показывать иконку в списке)</span></div>
-            <label class="switch"><input type="checkbox" id="toggle-bells" onchange="saveSettings()"><span class="slider"></span></label>
-        </div>
-        <div class="setting-row">
-            <div>Все уведомления<br><span style="color:#888888; font-size:11px;">(Игры, аватарки, статусы)</span></div>
-            <label class="switch"><input type="checkbox" id="toggle-all-notifs" onchange="saveSettings()"><span class="slider"></span></label>
-        </div>
-        <div class="setting-row">
-            <div>Страницы<br><span style="color:#888888; font-size:11px;">(По 10 юзеров на страницу)</span></div>
-            <label class="switch"><input type="checkbox" id="toggle-pagination" onchange="saveSettings()"><span class="slider"></span></label>
-        </div>
-        <div class="setting-row">
-            <div>№ Логов<br><span style="color:#888888; font-size:11px;">(Отображает 5-значный номер снятых)</span></div>
-            <label class="switch"><input type="checkbox" id="toggle-logs" onchange="saveSettings()"><span class="slider"></span></label>
-        </div>
-        
-        <div class="setting-row" style="cursor: pointer;" onclick="switchView('import-view')">
-            <div>📥 Массовый импорт<br><span style="color:#888888; font-size:11px;">Загрузить список ID / ссылок</span></div>
-            <div style="color: #64b5f6; font-weight: bold; font-size: 18px;">➔</div>
-        </div>
-    </div>
-
-    <!-- 5. МАССОВЫЙ ИМПОРТ -->
-    <div class="container" id="import-view">
-        <div class="nav-bar">
-            <button class="sq-btn btn-secondary" onclick="switchView('settings-view')">◀</button>
-            <h3 style="margin:0; align-self:center;">Массовый импорт</h3>
-            <div style="width:42px;"></div>
-        </div>
-        <p style="font-size: 13px; color: #888888; margin-bottom: 15px; text-align: center;">Вставь ссылки на профили или SteamID (каждый с новой строки). Бот загрузит их по очереди.</p>
-        <textarea id="import-textarea" placeholder="https://steamcommunity.com/id/user1&#10;76561198...&#10;user2" style="min-height: 250px;"></textarea>
-        <button class="sq-btn" style="width:100%; background-color:#242f3d; color:#4CAF50; font-weight:bold;" onclick="submitImport()">📥 Начать загрузку</button>
-    </div>
-
-    <script>
-        const tg = window.Telegram.WebApp;
-        tg.expand();
-
-        let currentUser = null;
-        let usersData = [];
-        let currentFilteredData = [];
-        let deletedUserIds = new Set(JSON.parse(localStorage.getItem('deletedUserIds') || '[]'));
-        
-        // ЖЕСТКИЙ КЭШ: Чтобы панель не затирала данные до ответа сервера
-        let localCache = JSON.parse(localStorage.getItem('steamLocalCache') || '{}');
-        function updateLocalCache(id, key, value) {
-            if (!localCache[id]) localCache[id] = {};
-            localCache[id][key] = value;
-            localStorage.setItem('steamLocalCache', JSON.stringify(localCache));
-        }
-        
-        let pendingUsers = []; 
-        let commandQueue = [];
-        let isCommandSending = false;
-        let pendingCommandsCount = 0;
-        
-        let currentPage = 1;
-        const USERS_PER_PAGE = 10;
-        
-        let showBells = localStorage.getItem('showBells') !== 'false';
-        document.getElementById('toggle-bells').checked = showBells;
-        let allNotifs = localStorage.getItem('allNotifs') !== 'false';
-        document.getElementById('toggle-all-notifs').checked = allNotifs;
-        let usePagination = localStorage.getItem('usePagination') === 'true';
-        document.getElementById('toggle-pagination').checked = usePagination;
-        let showLogs = localStorage.getItem('showLogs') !== 'false';
-        document.getElementById('toggle-logs').checked = showLogs;
-
-        function populateDateSelects() {
-            let days = '', months = '', days15 = '';
-            for(let i=1; i<=31; i++) days += `<option value="${i}">${String(i).padStart(2,'0')}</option>`;
-            for(let i=1; i<=12; i++) months += `<option value="${i}">${String(i).padStart(2,'0')}</option>`;
-            for(let i=1; i<=15; i++) days15 += `<option value="${i}">${i}</option>`;
-            document.getElementById('ban-day').innerHTML = days; document.getElementById('ban-month').innerHTML = months;
-            document.getElementById('snat-day').innerHTML = days; document.getElementById('snat-month').innerHTML = months;
-            document.getElementById('ban-days').innerHTML = days15;
-        }
-        populateDateSelects();
-
-        let isEditing = false;
-        document.addEventListener('focusin', (e) => { if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) isEditing = true; });
-        document.addEventListener('focusout', (e) => { if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) setTimeout(() => isEditing = false, 200); });
-
-        const urlParams = new URLSearchParams(window.location.search);
-        const TOKEN = urlParams.get('t');
-        const DB_PATH = urlParams.get('d');
-        const CMD_PATH = urlParams.get('c');
-
-        function updateBotStatus(isOnline) {
-            const dot = document.getElementById('bot-dot');
-            if(dot) {
-                if(isOnline) { dot.style.backgroundColor = '#4CAF50'; dot.style.boxShadow = '0 0 6px #4CAF50'; } 
-                else { dot.style.backgroundColor = '#F44336'; dot.style.boxShadow = '0 0 6px #F44336'; }
-            }
-        }
-
-        function showToast(msg, type = "info") {
-            const toast = document.getElementById("toast");
-            toast.innerText = msg; toast.className = `show ${type}`;
-            setTimeout(() => { toast.className = toast.className.replace("show", "").trim(); }, 2500);
-        }
-        
-        function copyId(text) { navigator.clipboard.writeText(text).then(() => { showToast("ID скопирован! ✅", "success"); }).catch(err => { showToast("Ошибка копирования ❌", "error"); }); }
-        function copyLog(event, text) { event.stopPropagation(); navigator.clipboard.writeText(text).then(() => { showToast("Номер лога скопирован! ✅", "success"); }).catch(err => { showToast("Ошибка копирования ❌", "error"); }); }
-        function copyIdFromList(event, text) { event.stopPropagation(); navigator.clipboard.writeText(text).then(() => { showToast("Скопировано! ✅", "success"); }).catch(err => { showToast("Ошибка копирования ❌", "error"); }); }
-        
-        function setButtonLoading(btnId, isLoading, originalIcon = '⟳') {
-            const btn = document.getElementById(btnId);
-            if(btn) btn.innerText = isLoading ? '⏳' : originalIcon;
-        }
-
-        function resetAllButtons() {
-            setButtonLoading('btn-global-refresh', false, '⟳');
-            setButtonLoading('btn-add-user', false, '➕');
-            setButtonLoading('btn-detail-refresh', false, '⟳');
-            setButtonLoading('btn-save-exact', false, '💾');
-            setButtonLoading('btn-save-approx', false, '💾');
-            setButtonLoading('btn-save-snat', false, '💾');
-            setButtonLoading('btn-save-note', false, '💾');
-            setButtonLoading('btn-save-device', false, '💾');
-            setButtonLoading('btn-checker-search', false, '🔍');
-        }
-
-        // УМНЫЙ ПАРСЕР ССЫЛОК ДЛЯ СТЫКОВКИ (Избавляет от бесконечной загрузки)
-        function getSteamIdFromUrl(url) {
-            if (!url) return "";
-            let parts = url.split('/').filter(x => x);
-            return parts[parts.length - 1].toLowerCase();
-        }
-
-        async function fetchLiveDB(manual = false) {
-            if (!DB_PATH || isEditing || pendingCommandsCount > 0) return; 
-            try {
-                const r = await fetch(`https://api.telegra.ph/getPage/${DB_PATH}?return_content=true&_=${Date.now()}`);
-                if (r.ok) updateBotStatus(true); else updateBotStatus(false);
-                const data = await r.json();
-                let jsonStr = "";
-                if (data.result && data.result.content && data.result.content.length > 0 && data.result.content[0].children) {
-                    for (let c of data.result.content[0].children) if (typeof c === 'string') jsonStr += c;
-                }
-                let rawData = JSON.parse(jsonStr || "[]");
+    try:
+        url = "https://woksteamapi.com/v1/inventory"
+        params = {"steam_id": steam_id, "game": "cs2"}
+        async with session.get(url, headers=wok_headers, params=params, timeout=5) as r:
+            if r.status == 200:
+                data = await r.json()
+                status = data.get("status")
+                if status in ["private", "notfound"]: return "Скрыто 🔒"
+                if status == "empty": return "$0.00 (0 шт.)"
                 
-                // Применяем локальный кэш, чтобы введенные данные не стирались
-                usersData = rawData.filter(u => !deletedUserIds.has(u.id)).map(u => {
-                    if (localCache[u.id]) {
-                        if (localCache[u.id].device !== undefined) u.device = localCache[u.id].device;
-                        if (localCache[u.id].note !== undefined) u.note = localCache[u.id].note;
-                    }
-                    return u;
-                });
+                items_count = data.get("items_total")
+                val = data.get("total")
+                if val is not None and items_count is not None:
+                    return f"${float(val):.2f} ({items_count} шт.)"
+    except Exception: pass
 
-                pendingUsers = pendingUsers.filter(p => (Date.now() - p.timestamp) < 300000);
-                
-                // Идеальная стыковка: панель понимает, что "Way" и "https://steamcommunity.com/id/Way" — это одно и то же
-                pendingUsers = pendingUsers.filter(p => !usersData.some(u => {
-                    let uId = getSteamIdFromUrl(u.url || u.id);
-                    let pId = getSteamIdFromUrl(p.url || p.id);
-                    return u.id === p.id || uId === pId || (p.id.startsWith('chk_') && u.id === p.id);
-                }));
+    if items_count is None:
+        try:
+            steam_url = f"https://steamcommunity.com/inventory/{steam_id}/730/2?count=1"
+            async with session.get(steam_url, headers=headers, timeout=4) as r:
+                if r.status in [401, 403]: return "Скрыто 🔒"
+                if r.status == 200:
+                    data = await r.json()
+                    items_count = data.get("total_inventory_count", 0)
+                    if items_count == 0: return "$0.00 (0 шт.)"
+        except Exception: pass
 
-                usersData.unshift(...pendingUsers);
-                
-                const baseCount = usersData.filter(u => u.is_checker !== 1).length;
-                document.getElementById('new-user-input').placeholder = `ID, LINK OR USERLINK (${baseCount})`;
+    if not price_str and items_count:
+        try:
+            async with session.get(f"https://csgobackpack.net/api/GetInventoryValue/?id={steam_id}", headers=headers, timeout=4) as r:
+                if r.status == 200:
+                    data = await r.json()
+                    if data.get('success'): 
+                        val = data['value'].get('7_days', data['value'].get('30_days', data['value'].get('all_time', 0)))
+                        try:
+                            clean_val = str(val).replace(',', '').replace('$', '')
+                            price_str = f"${float(clean_val):.2f}"
+                        except Exception:
+                            price_str = f"${val}"
+        except Exception: pass
 
-                if(document.getElementById('list-view').classList.contains('active-view')) { filterList(false); } 
-                else if (document.getElementById('checker-view').classList.contains('active-view')) { renderChecker(); } 
-                else if (currentUser) {
-                    const upUser = usersData.find(u => u.id === currentUser.id);
-                    if (upUser) {
-                        currentUser = upUser; 
-                        document.getElementById('detail-status').innerHTML = getStatusText(upUser);
-                        document.getElementById('detail-hours').innerText = upUser.hours;
-                        document.getElementById('detail-inv').innerHTML = colorizeInv(upUser.inv);
-                        if(document.activeElement.id !== 'detail-device') document.getElementById('detail-device').value = upUser.device || "";
-                    } else { showList(); }
-                }
-                if (manual) showToast("Данные обновлены ✅", "success");
-            } catch(e) { updateBotStatus(false); }
-        }
+    if price_str and items_count is not None:
+        return f"{price_str} ({items_count} шт.)"
+    elif items_count is not None:
+        return f"Неизвестно ⚠️ ({items_count} шт.)"
+    
+    return "Неизвестно ⚠️"
 
-        setInterval(fetchLiveDB, 3000);
-        fetchLiveDB();
-
-        function manualRefresh() { 
-            document.getElementById('new-user-input').value = ""; 
-            setButtonLoading('btn-global-refresh', true, '⟳');
-            sendSilentCommand({ action: "force_update" }, "Обновление... ⏳");
-        }
+# --- ОСНОВНОЙ ЦИКЛ ОБРАБОТКИ ---
+async def poll_commands():
+    if not TG_TOKEN: return
+    try:
+        res = await telegraph_request("getPage", path=TG_CMD, return_content="true")
+        if not res.get("ok"): return
+        nodes = res["result"].get("content", [])
+        if not nodes: return
         
-        function refreshCurrentUser() {
-            if (!currentUser) return;
-            setButtonLoading('btn-detail-refresh', true, '⟳');
-            sendSilentCommand({ action: "force_update_single", steam_id: currentUser.id }, "Обновление... ⏳");
-        }
-
-        async function processCommandQueue() {
-            if (isCommandSending || commandQueue.length === 0) return;
-            isCommandSending = true;
-            let { cmdObj, toastMsg, timeoutMs } = commandQueue.shift();
-
-            if(toastMsg) showToast(toastMsg, "info");
-
-            try {
-                const r = await fetch(`https://api.telegra.ph/getPage/${CMD_PATH}?return_content=true&_=${Date.now()}`);
-                if (r.ok) updateBotStatus(true); else updateBotStatus(false);
-                
-                const data = await r.json();
-                let jsonStr = "";
-                if (data.result && data.result.content && data.result.content.length > 0 && data.result.content[0].children) {
-                    for (let c of data.result.content[0].children) if (typeof c === 'string') jsonStr += c;
-                }
-                let cmds = [];
-                try { cmds = JSON.parse(jsonStr || "[]"); } catch(e){}
-                
-                cmds.push(cmdObj);
-                const newStr = JSON.stringify(cmds);
-                let chunks = [];
-                for(let i=0; i<newStr.length; i+=4000) chunks.push(newStr.slice(i, i+4000));
-                
-                const formData = new FormData();
-                formData.append("access_token", TOKEN);
-                formData.append("title", "CMD");
-                formData.append("content", JSON.stringify([{"tag":"p", "children": chunks.length ? chunks : ["[]"]}]));
-                
-                await fetch(`https://api.telegra.ph/editPage/${CMD_PATH}`, { method: "POST", body: formData });
-
-                setTimeout(() => {
-                    pendingCommandsCount--;
-                    if (pendingCommandsCount <= 0) { pendingCommandsCount = 0; fetchLiveDB(false); }
-                    resetAllButtons();
-                    isCommandSending = false;
-                    processCommandQueue();
-                }, timeoutMs);
-
-            } catch(e) { 
-                updateBotStatus(false);
-                showToast("Ошибка сети ❌", "error"); 
-                pendingCommandsCount--;
-                if (pendingCommandsCount < 0) pendingCommandsCount = 0;
-                resetAllButtons();
-                isCommandSending = false;
-                processCommandQueue();
-            }
-        }
-
-        function sendSilentCommand(cmdObj, toastMsg = null, timeoutMs = 1500) {
-            pendingCommandsCount++;
-            commandQueue.push({ cmdObj, toastMsg, timeoutMs });
-            processCommandQueue();
-        }
-
-        function getStatusClass(u) { return u.game ? "bg-ingame" : (u.status === 1 ? "bg-online" : (u.status === 3 || u.status === 4 ? "bg-away" : "")); }
-        function getStatusText(u) { return u.game ? "🎮 " + u.game : (u.status === 1 ? "🟢 В сети" : (u.status === 0 ? "🔴 Оффлайн" : "🟡 Отошел")); }
+        cmd_json = "".join([c for c in nodes[0].get("children", []) if isinstance(c, str)])
+        if not cmd_json or cmd_json == "[]": return
+        try: cmds = json.loads(cmd_json)
+        except: cmds = []
+        if not cmds: return
         
-        function colorizeInv(text) {
-            if (!text || text === "-") return '<span style="color:#888888;">Скрыто 🔒</span>';
-            let formatted = text.replace(/\((.*?)\)/, '<span style="font-size: 10px; color: #888888;">($1)</span>');
-            if (formatted.includes('Скрыто')) return `<span style="color:#888888;">${formatted}</span>`;
-            if (formatted.includes('Неизвестно')) return `<span style="color:#FFC107;">${formatted}</span>`;
-            if (formatted.includes('Ошибка')) return `<span style="color:#F44336;">${formatted}</span>`;
-            if (formatted.includes('Сканирую')) return `<span style="color:#FFC107;">${formatted}</span>`;
-            if (formatted.includes('Очередь')) return `<span style="color:#FFC107;">${formatted}</span>`;
-            if (formatted.includes('$')) return `<span style="color: #4CAF50;">${formatted}</span>`;
-            return formatted;
-        }
-
-        function formatTimeLeft(targetTime) {
-            let tl = targetTime - Math.floor(Date.now() / 1000);
-            if (tl <= 0) return "Истекает...";
-            let d = Math.floor(tl / 86400); let h = Math.floor((tl % 86400) / 3600); let m = Math.floor((tl % 3600) / 60);
-            if (d > 0) return `${d}д ${h}ч`; if (h > 0) return `${h}ч ${m}м`; return `${m}м`;
-        }
-
-        function renderList(dataToRender) {
-            const container = document.getElementById('users-container'); container.innerHTML = '';
-            dataToRender.forEach(user => {
-                const item = document.createElement('div'); item.className = 'user-item';
-                let bell = showBells ? `<div class="bell-icon" onclick="toggleNotif(event, '${user.id}')">${user.notif ? '🔔' : '🔕'}</div>` : '';
-                
-                let tbText = "";
-                let timerHtml = user.tb_time ? `<span style="color:#888888; font-weight:normal; font-size:10px;">(⏳${formatTimeLeft(user.tb_time)})</span>` : "";
-                let logHtml = (showLogs && user.log && user.tb_status.startsWith('snat')) ? `<span class="clickable-log" onclick="copyLog(event, '${user.log}')">#${user.log}</span>` : "";
-
-                if (user.tb_status === "ban_exact" || user.tb_status === "ban_approx") tbText = `<div class="tb-status-text"><span style="color: #FF9800;">⏳ Трейдбан</span> ${timerHtml}</div>`;
-                else if (user.tb_status === "ready") tbText = `<div class="tb-status-text" style="color: #a8b5c2;">🔓 Можно снимать</div>`;
-                else if (user.tb_status === "snat") tbText = `<div class="tb-status-text"><span style="color: #4CAF50;">✅ Снят</span> ${timerHtml}${logHtml}</div>`;
-                else if (user.tb_status === "snat_work") tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#FFC107;">🤝 ВЕД</span> ${timerHtml}${logHtml}</div>`;
-                else if (user.tb_status === "snat_vac") tbText = `<div class="tb-status-text"><span style="color:#4CAF50;">✅ Снят +</span> <span style="color:#F44336;">🛑 ВАК</span> ${timerHtml}${logHtml}</div>`;
-                else if (user.tb_status === "unbanned") tbText = `<div class="tb-status-text" style="color: #4CAF50; font-weight: 800;">💸 Разбанился 💸</div>`;
-
-                let showId = user.id.startsWith('http') || user.id.startsWith('imp_') ? "..." : user.id;
-                let deviceHtml = user.device ? `<div><span class="device-badge" onclick="copyIdFromList(event, '${user.device}')">💻 ${user.device}</span></div>` : "";
-
-                item.innerHTML = `
-                    <div class="avatar-container" onclick="showDetail('${user.id}')">
-                        <img class="avatar-small" src="${user.avatar || 'https://steamuserimages-a.akamaihd.net/ugc/885384897182110030/F095539864AC9E94AE5236E04C8CA7C2725BCEEA/'}">
-                        <div class="status-badge ${getStatusClass(user)}"></div>
-                    </div>
-                    <div class="user-info-short" onclick="showDetail('${user.id}')">
-                        <div class="user-name-text">
-                            ${user.name} 
-                            <span class="id-badge" onclick="copyIdFromList(event, '${showId}')">(${showId})</span>
-                        </div>
-                        <div class="user-inv-text">Инв: ${colorizeInv(user.inv)}</div>
-                        ${deviceHtml}
-                    </div>
-                    ${tbText}
-                    ${bell}
-                `;
-                container.appendChild(item);
-            });
-        }
+        empty_content = json.dumps([{"tag": "p", "children": ["[]"]}])
+        await telegraph_request("editPage", access_token=TG_TOKEN, path=TG_CMD, title="CMD", content=empty_content)
         
-        function renderPagination(totalItems) {
-            const container = document.getElementById('pagination-controls');
-            container.innerHTML = '';
-            if (!usePagination || totalItems <= USERS_PER_PAGE) { container.style.display = 'none'; return; }
-            container.style.display = 'flex';
-            const totalPages = Math.ceil(totalItems / USERS_PER_PAGE);
-            for (let i = 1; i <= totalPages; i++) {
-                const btn = document.createElement('button');
-                btn.innerText = i; btn.className = 'sq-btn btn-secondary';
-                btn.style.width = '30px'; btn.style.height = '30px'; btn.style.fontSize = '14px';
-                if (i === currentPage) { btn.style.backgroundColor = '#5288c1'; btn.style.color = 'white'; btn.style.borderColor = '#5288c1'; }
-                btn.onclick = () => { currentPage = i; applyPaginationAndRender(); };
-                container.appendChild(btn);
-            }
-        }
+        async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
+            async with aiohttp.ClientSession() as session:
+                for data in cmds:
+                    try:
+                        action = data.get("action")
+                        steam_id = data.get("steam_id")
+                        current_date = datetime.now().strftime("%d.%m.%Y")
+                        
+                        if action == "force_update":
+                            async with db.execute("SELECT steam_id FROM users WHERE is_checker = 0") as cursor:
+                                users_to_update = [row[0] for row in await cursor.fetchall()]
+                            
+                            async def fetch_update(sid):
+                                try:
+                                    profile = await get_steam_profile(session, sid)
+                                    if profile:
+                                        hrs = await get_cs_hours(session, sid)
+                                        inv = await get_inventory_cs2(session, sid)
+                                        return (profile.get('personastate', 0), profile.get('gameextrainfo', ''), hrs, inv, profile.get('personaname', 'User'), profile.get('avatarfull', ''), sid)
+                                except Exception: pass
+                                return None
 
-        function filterList(resetPage = false) {
-            const query = document.getElementById('new-user-input').value.trim().toLowerCase();
-            let baseUsers = [...usersData].filter(u => u.is_checker !== 1);
-            let filtered = baseUsers;
+                            for i in range(0, len(users_to_update), 3):
+                                chunk = users_to_update[i:i+3]
+                                tasks = [fetch_update(sid) for sid in chunk]
+                                results = await asyncio.gather(*tasks)
+                                
+                                for res in results:
+                                    if res: await db.execute("UPDATE users SET last_status=?, last_game=?, cs_hours=?, inv_value=?, name=?, avatar=? WHERE steam_id=?", res)
+                                await db.commit()
+                                await trigger_sync()
+                                await asyncio.sleep(1)
+
+                        elif action == "force_update_single":
+                            profile = await get_steam_profile(session, steam_id)
+                            if profile:
+                                cs_hours = await get_cs_hours(session, steam_id)
+                                inv_val = await get_inventory_cs2(session, steam_id)
+                                await db.execute("""
+                                    UPDATE users SET last_status=?, last_game=?, cs_hours=?, inv_value=?, name=?, avatar=? WHERE steam_id=?
+                                """, (profile.get('personastate', 0), profile.get('gameextrainfo', ''), cs_hours, inv_val, profile.get('personaname', 'User'), profile.get('avatarfull', ''), steam_id))
+                                await db.commit()
+                                await trigger_sync()
+
+                        elif action == "checker_scan":
+                            url = data.get("url", "").strip()
+                            try:
+                                new_steam_id = await resolve_vanity_url(session, url)
+                                if new_steam_id:
+                                    profile = await get_steam_profile(session, new_steam_id)
+                                    name = profile.get('personaname', 'ОШИБКА Steam') if profile else 'ОШИБКА Steam'
+                                    avatar = profile.get('avatarfull', '') if profile else ''
+                                    status = profile.get('personastate', 0) if profile else 0
+                                    real_url = profile.get('profileurl', url) if profile else url
+                                    
+                                    cs_hours = await get_cs_hours(session, new_steam_id)
+                                    inv_cs = await get_inventory_cs2(session, new_steam_id)
+                                    chk_id = f"chk_{new_steam_id}"
+                                    await db.execute("""
+                                        INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, 1, '')
+                                    """, (chk_id, name, avatar, real_url, status, cs_hours, inv_cs))
+                                else:
+                                    chk_id = f"chk_{url.split('/')[-1]}"
+                                    await db.execute("""
+                                        INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, 1, '')
+                                    """, (chk_id, "❌ Не найдено", "", url, 0, "...", "Ошибка"))
+                                    await send_alert(f"❌ Чекер: Неверная ссылка ({url})")
+                            except Exception:
+                                pass
+                            await db.commit()
+                            await trigger_sync()
+
+                        elif action == "add_users_batch":
+                            urls = data.get("urls", [])
+                            added_count = 0
+
+                            async def fetch_user_data(url):
+                                try:
+                                    sid = await resolve_vanity_url(session, url)
+                                    if not sid:
+                                        fallback_id = url.split('/')[-1] if '/' in url else url
+                                        return (fallback_id, url, "❌ Ошибка ссылки", "", 0, "...", "Ошибка")
+                                    
+                                    profile = await get_steam_profile(session, sid)
+                                    name = profile.get('personaname', 'ОШИБКА Steam') if profile else 'ОШИБКА Steam'
+                                    avatar = profile.get('avatarfull', '') if profile else ''
+                                    status = profile.get('personastate', 0) if profile else 0
+                                    real_url = profile.get('profileurl', url) if profile else url
+                                    
+                                    hrs = await get_cs_hours(session, sid)
+                                    inv = await get_inventory_cs2(session, sid)
+                                    return (sid, real_url, name, avatar, status, hrs, inv)
+                                except Exception as e:
+                                    fallback_id = url.split('/')[-1] if '/' in url else url
+                                    return (fallback_id, url, "❌ Ошибка / Таймаут", "", 0, "...", "Ошибка")
+
+                            for i in range(0, len(urls), 3):
+                                chunk = urls[i:i+3]
+                                tasks = [fetch_user_data(u) for u in chunk]
+                                results = await asyncio.gather(*tasks)
+                                
+                                chunk_added = 0
+                                for res in results:
+                                    sid, real_url, name, avatar, status, hrs, inv = res
+                                    
+                                    async with db.execute("SELECT steam_id FROM users WHERE steam_id = ?", (sid,)) as cursor:
+                                        if await cursor.fetchone(): continue
+                                        
+                                    await db.execute("""
+                                        INSERT INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0)
+                                    """, (sid, name, avatar, real_url, status, hrs, inv, current_date))
+                                    chunk_added += 1
+                                    
+                                added_count += chunk_added
+                                if chunk_added > 0:
+                                    await db.commit()
+                                    await trigger_sync()
+                                await asyncio.sleep(1)
+
+                            if added_count > 0:
+                                await send_alert(f"✅ Массовый импорт: добавлено {added_count} профилей.")
+
+                        elif action == "add_user":
+                            url = data.get("url", "").strip()
+                            try:
+                                new_steam_id = await resolve_vanity_url(session, url)
+                                if not new_steam_id:
+                                    fallback_id = url.split('/')[-1] if '/' in url else url
+                                    await db.execute("""
+                                        INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0)
+                                    """, (fallback_id, "❌ Ошибка ссылки", "", url, 0, "...", "Ошибка", current_date))
+                                else:
+                                    async with db.execute("SELECT steam_id FROM users WHERE steam_id = ?", (new_steam_id,)) as cursor:
+                                        if not await cursor.fetchone():
+                                            profile = await get_steam_profile(session, new_steam_id)
+                                            name = profile.get('personaname', 'ОШИБКА Steam') if profile else 'ОШИБКА Steam'
+                                            avatar = profile.get('avatarfull', '') if profile else ''
+                                            status = profile.get('personastate', 0) if profile else 0
+                                            real_url = profile.get('profileurl', url) if profile else url
+                                            
+                                            cs_hours = await get_cs_hours(session, new_steam_id)
+                                            inv_val = await get_inventory_cs2(session, new_steam_id)
+                                            
+                                            await db.execute("""
+                                                INSERT INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications)
+                                                VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0)
+                                            """, (new_steam_id, name, avatar, real_url, status, cs_hours, inv_val, current_date))
+                            except Exception as e:
+                                fallback_id = url.split('/')[-1] if '/' in url else url
+                                await db.execute("""
+                                    INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0)
+                                """, (fallback_id, "❌ Ошибка / Таймаут", "", url, 0, "...", "Ошибка", current_date))
+                            
+                            await db.commit()
+                            await trigger_sync()
+
+                        elif action == "update_device":
+                            await db.execute("UPDATE users SET device_name = ? WHERE steam_id = ?", (data.get("device", ""), steam_id))
+                            await db.commit()
+                            await sync_to_cloud() # ЖЕСТКАЯ ПРИНУДИТЕЛЬНАЯ ЗАПИСЬ В ОБЛАКО БЕЗ ЗАДЕРЖЕК
+
+                        elif action == "approve_checker":
+                            if steam_id.startswith("chk_"):
+                                real_id = steam_id[4:]
+                                await db.execute("DELETE FROM users WHERE steam_id = ?", (real_id,))
+                                await db.execute("UPDATE users SET steam_id = ?, is_checker = 0, added_date = ? WHERE steam_id = ?", (real_id, current_date, steam_id))
+                                await db.commit()
+                                await trigger_sync()
+                        elif action == "set_all_notifs":
+                            val = '1' if data.get("value") else '0'
+                            await db.execute("UPDATE settings SET value = ? WHERE key = 'all_notifs'", (val,))
+                            await db.commit()
+                            await trigger_sync()
+                        elif action == "update_note":
+                            await db.execute("UPDATE users SET note = ? WHERE steam_id = ?", (data.get("note", ""), steam_id))
+                            await db.commit()
+                            await sync_to_cloud() # ЖЕСТКАЯ ПРИНУДИТЕЛЬНАЯ ЗАПИСЬ
+                        elif action == "update_tradeban":
+                            await db.execute("UPDATE users SET tb_status = ?, tb_time = ?, log_number = ? WHERE steam_id = ?", (data.get("tb_status"), data.get("tb_time"), data.get("log", ""), steam_id))
+                            await db.commit()
+                            await trigger_sync()
+                        elif action == "delete":
+                            await db.execute("DELETE FROM users WHERE steam_id = ?", (steam_id,))
+                            await db.commit()
+                            await trigger_sync()
+                        elif action == "toggle_notif":
+                            async with db.execute("SELECT notifications FROM users WHERE steam_id = ?", (steam_id,)) as cursor:
+                                row = await cursor.fetchone()
+                                if row:
+                                    new_notif = 0 if row[0] else 1
+                                    await db.execute("UPDATE users SET notifications = ? WHERE steam_id = ?", (new_notif, steam_id))
+                                    await db.commit()
+                                    await trigger_sync()
+                                    
+                    except Exception as e:
+                        logging.error(f"Error processing command {data}: {e}")
+                        continue
+    except Exception as e:
+        logging.error(f"Poll General Error: {e}")
+
+@dp.message(Command("start"))
+async def cmd_start(message: Message):
+    if message.chat.type != "private":
+        return await message.answer("❌ Панель управления доступна только в личных сообщениях с ботом!")
+        
+    final_url = f"{WEB_APP_URL}?t={TG_TOKEN}&d={TG_DB}&c={TG_CMD}"
+    kb = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🌐 Открыть панель", web_app=WebAppInfo(url=final_url))]], resize_keyboard=True, is_persistent=True)
+    await message.answer("✅ Панель готова. Жми кнопку!", reply_markup=kb)
+
+async def check_timers():
+    changed = False
+    current_time = int(time.time())
+    async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
+        async with db.execute("SELECT steam_id, name, profile_url, tb_status FROM users WHERE is_checker=0 AND tb_status LIKE 'ban%' AND tb_time > 0 AND tb_time <= ?", (current_time,)) as cursor:
+            ready_bans = await cursor.fetchall()
             
-            if (query) filtered = filtered.filter(u => u.name.toLowerCase().includes(query) || u.id.includes(query) || (u.device && u.device.toLowerCase().includes(query)));
+        for ban in ready_bans:
+            steam_id, name, url, status = ban
+            approx_str = " (примерно)" if status == "ban_approx" else ""
+            await send_alert(f"🔓 <b>РАЗБЛОКИРОВКА!</b> У пользователя <a href='{url}'>{name}</a> разбанились предметы{approx_str}!")
+            await db.execute("UPDATE users SET tb_status = 'ready', tb_time = 0 WHERE steam_id = ?", (steam_id,))
+            changed = True
             
-            const sortVal = document.getElementById('sort-select').value;
-            const paramSelect = document.getElementById('param-select');
+        async with db.execute("SELECT steam_id, name, profile_url FROM users WHERE is_checker=0 AND tb_status LIKE 'snat%' AND tb_time > 0 AND tb_time <= ?", (current_time,)) as cursor:
+            ready_snats = await cursor.fetchall()
             
-            if (sortVal === 'param') {
-                paramSelect.style.display = 'block';
-                const paramVal = paramSelect.value;
-                filtered = filtered.filter(u => {
-                    if (paramVal === 'ban') return u.tb_status === 'ban_exact' || u.tb_status === 'ban_approx';
-                    return u.tb_status === paramVal;
-                });
-                filtered.reverse();
-            } else {
-                paramSelect.style.display = 'none';
-                if (sortVal === 'inv_desc') {
-                    filtered.sort((a, b) => {
-                        let valA = parseFloat((a.inv || "").replace(/[^0-9.]/g, '')) || 0;
-                        let valB = parseFloat((b.inv || "").replace(/[^0-9.]/g, '')) || 0;
-                        return valB - valA;
-                    });
-                } else if (sortVal === 'tb_asc') {
-                    filtered.sort((a, b) => {
-                        let now = Math.floor(Date.now() / 1000);
-                        let tA = a.tb_time && a.tb_time > now ? a.tb_time : Infinity;
-                        let tB = b.tb_time && b.tb_time > now ? b.tb_time : Infinity;
-                        return tA - tB;
-                    });
-                } else { filtered.reverse(); }
-            }
-            
-            currentFilteredData = filtered;
-            if (resetPage) currentPage = 1;
-            applyPaginationAndRender();
-        }
+        for snat in ready_snats:
+            steam_id, name, url = snat
+            await send_alert(f"💸 Пользователь <a href='{url}'>{name}</a> - разбанился!")
+            await db.execute("UPDATE users SET tb_status = 'unbanned', tb_time = 0 WHERE steam_id = ?", (steam_id,))
+            changed = True
 
-        function applyPaginationAndRender() {
-            const hiddenCount = usersData.filter(u => u.is_checker !== 1).length - currentFilteredData.length;
-            const hiddenEl = document.getElementById('hidden-count');
-            if (hiddenCount > 0) { hiddenEl.innerText = `(Скрыто ${hiddenCount} типов из-за сортировки / поиска)`; hiddenEl.style.display = 'block'; } 
-            else { hiddenEl.style.display = 'none'; }
+        await db.commit()
+    if changed: await trigger_sync()
 
-            let dataToRender = currentFilteredData;
-            if (usePagination) {
-                const start = (currentPage - 1) * USERS_PER_PAGE;
-                const end = start + USERS_PER_PAGE;
-                dataToRender = currentFilteredData.slice(start, end);
-            }
-            
-            renderList(dataToRender);
-            renderPagination(currentFilteredData.length);
-        }
+async def check_statuses():
+    async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
+        async with db.execute("SELECT steam_id, name, avatar, last_status, last_game, profile_url, notifications, inv_value FROM users WHERE is_checker=0") as cursor:
+            users = await cursor.fetchall()
+        async with db.execute("SELECT value FROM settings WHERE key='all_notifs'") as cursor:
+            row = await cursor.fetchone()
+            all_notifs = row[0] == '1' if row else True
 
-        function addUserFromInput() {
-            const input = document.getElementById('new-user-input').value.trim();
-            if (!input) return;
-            const isSteam = input.includes("steamcommunity.com") || /^\d{17}$/.test(input);
-            if (!isSteam) { showToast("❌ Введи Steam ссылку или ID64!", "error"); return; }
-            
-            let checkId = input.split('/').pop() || input;
-            if (usersData.some(u => u.id === checkId || (u.url && u.url.toLowerCase() === input.toLowerCase()))) { 
-                return showToast("⚠️ Пользователь уже есть в базе!", "warning"); 
-            }
+    if not users: return
+    changed = False
+    async with aiohttp.ClientSession() as session:
+        for user in users:
+            try:
+                steam_id, old_name, old_avatar, last_status, last_game, profile_url, notif_on, old_inv_val = user
+                profile = await get_steam_profile(session, steam_id)
+                if not profile or profile.get('communityvisibilitystate', 1) != 3: continue
 
-            pendingUsers.push({ id: checkId, timestamp: Date.now(), name: "Загрузка...", avatar: "", url: input, status: 0, hours: "...", inv: "⏳ Сканирую...", tb_status: "none", notif: 0, is_checker: 0, device: "" });
-            usersData.unshift(pendingUsers[pendingUsers.length-1]);
-            filterList(true);
-
-            setButtonLoading('btn-add-user', true, '➕');
-            sendSilentCommand({ action: "add_user", url: input }, "Отправлено боту ⏳", 1500); 
-            document.getElementById('new-user-input').value = ""; document.getElementById('new-user-input').blur();
-        }
-
-        function submitImport() {
-            const lines = document.getElementById('import-textarea').value.split('\n');
-            let toAdd = [];
-            for (let line of lines) { let text = line.trim(); if (text) toAdd.push(text); }
-            if (toAdd.length === 0) return showToast("Пустой список!", "warning");
-            
-            let finalUrls = [];
-            for (let url of toAdd) {
-                let checkId = url.split('/').pop() || url;
-                if (!usersData.some(u => u.id === checkId || (u.url && u.url.toLowerCase() === url.toLowerCase()))) { finalUrls.push(url); }
-            }
-            if (finalUrls.length === 0) return showToast("Все пользователи уже в базе!", "warning");
-            
-            for (let url of finalUrls) {
-                let checkId = url.split('/').pop() || url;
-                pendingUsers.push({ id: checkId, timestamp: Date.now(), name: "Очередь...", avatar: "", url: url, status: 0, hours: "...", inv: "⏳ В очереди...", tb_status: "none", notif: 0, is_checker: 0, device: "" });
-                usersData.unshift(pendingUsers[pendingUsers.length-1]);
-            }
-            
-            sendSilentCommand({ action: "add_users_batch", urls: finalUrls }, `Запущена загрузка ${finalUrls.length} шт. ⏳`, 1500);
-            document.getElementById('import-textarea').value = "";
-            switchView('list-view');
-        }
-
-        document.getElementById("new-user-input").addEventListener("input", () => filterList(true));
-        document.getElementById("new-user-input").addEventListener("keydown", e => { if (e.key === "Enter") addUserFromInput(); });
-        document.getElementById("detail-device").addEventListener("keydown", e => { if (e.key === "Enter") { saveDevice(); document.getElementById("detail-device").blur();} });
-
-        // --- ЖЕСТКОЕ СОХРАНЕНИЕ УСТРОЙСТВА ---
-        function saveDevice() {
-            if (!currentUser) return;
-            let newDevice = document.getElementById('detail-device').value.trim();
-            currentUser.device = newDevice;
-            
-            // Записываем в локальный кэш браузера, чтобы оно не стерлось при обновлении!
-            updateLocalCache(currentUser.id, 'device', newDevice);
-            
-            let userIdx = usersData.findIndex(u => u.id === currentUser.id);
-            if (userIdx > -1) { usersData[userIdx].device = newDevice; }
-
-            setButtonLoading('btn-save-device', true, '💾');
-            sendSilentCommand({ action: "update_device", steam_id: currentUser.id, device: newDevice }, "ПК сохранен ✅", 1500);
-            filterList(false);
-        }
-
-        function runChecker() {
-            const input = document.getElementById('checker-input').value.trim();
-            if (!input) return;
-            const isSteam = input.includes("steamcommunity.com") || /^\d{17}$/.test(input);
-            if (!isSteam) { showToast("❌ Введи Steam ссылку или ID64!", "error"); return; }
-            
-            let checkId = input.split('/').pop() || input;
-            let chkId = `chk_${checkId}`;
-            pendingUsers.push({ id: chkId, timestamp: Date.now(), name: "Загрузка...", avatar: "", url: input, status: 0, hours: "...", inv: "⏳ Сканирую...", tb_status: "none", notif: 0, is_checker: 1, device: "" });
-            usersData.unshift(pendingUsers[pendingUsers.length-1]);
-            
-            renderChecker();
-            setButtonLoading('btn-checker-search', true, '🔍');
-            sendSilentCommand({ action: "checker_scan", url: input }, "Сканирую CS2...", 1500);
-            document.getElementById('checker-input').blur();
-        }
-
-        function approveChecker(id, btnElement) {
-            btnElement.innerText = "⏳ Добавляю...";
-            sendSilentCommand({ action: "approve_checker", steam_id: id }, "Переношу в базу...", 1500);
-            usersData = usersData.filter(u => { if(u.id === id) { u.is_checker = 0; } return true; });
-            setTimeout(renderChecker, 500);
-        }
-
-        function renderChecker() {
-            const container = document.getElementById('checker-results'); container.innerHTML = '';
-            const checkerUsers = usersData.filter(u => u.is_checker == 1).reverse();
-            if (checkerUsers.length === 0) { container.innerHTML = '<div style="text-align:center; color:#7f91a4; font-size: 14px; margin-top:20px;">Введи ссылку вверху, чтобы проверить аккаунт.</div>'; return; }
-            checkerUsers.forEach(user => {
-                const item = document.createElement('div'); item.className = 'card-stats'; item.style.marginBottom = '10px';
-                let realId = user.id.replace('chk_', '');
-                item.innerHTML = `
-                    <div style="display:flex; align-items:center; margin-bottom:10px; border-bottom: 1px solid #303f50; padding-bottom: 10px;">
-                        <img src="${user.avatar}" class="avatar-small" style="margin-right:12px;">
-                        <div style="flex-grow:1; overflow:hidden;">
-                            <div style="font-weight:bold; font-size:16px; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">
-                                ${user.name} <span class="id-badge" onclick="copyIdFromList(event, '${realId}')">(${realId})</span>
-                            </div>
-                        </div>
-                        <button class="sq-btn" style="background-color:#242f3d; width:32px; height:32px; font-size:14px; flex-shrink:0;" onclick="deleteUser('${user.id}')">❌</button>
-                    </div>
-                    <div class="stat-row"><span>Часов в CS:</span> <span class="stat-value">${user.hours}</span></div>
-                    <div class="stat-row"><span>Инвентарь CS2:</span> <span class="stat-value">${colorizeInv(user.inv)}</span></div>
-                    <button class="sq-btn" style="width:100%; margin-top:10px; background-color:#242f3d; color:#4CAF50; font-weight:bold;" onclick="approveChecker('${user.id}', this)">✅ Добавить в базу</button>
-                `;
-                container.appendChild(item);
-            });
-        }
-
-        function handleTradebanChange() {
-            const val = document.getElementById('tradeban-select').value;
-            const banUI = document.getElementById('ban-ui'); const snatUI = document.getElementById('snat-ui');
-            banUI.style.display = 'none'; snatUI.style.display = 'none';
-            if (val === 'ban') { banUI.style.display = 'flex'; toggleBanUI(); } 
-            else if (val === 'snat') {
-                snatUI.style.display = 'flex'; const now = new Date();
-                document.getElementById('snat-day').value = String(now.getDate()); document.getElementById('snat-month').value = String(now.getMonth() + 1);
-                document.getElementById('snat-time').value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                document.getElementById('snat-log').value = currentUser.log || "";
-            } else { saveTradebanState(val, 0); }
-        }
-
-        function toggleBanUI() {
-            const type = document.querySelector('input[name="ban_type"]:checked').value;
-            if(type === 'ban_exact') {
-                document.getElementById('ban-exact-inputs').style.display = 'flex'; document.getElementById('ban-approx-inputs').style.display = 'none';
-                document.getElementById('ban-hint').innerHTML = 'Точная дата конца тб:'; const now = new Date();
-                document.getElementById('ban-day').value = String(now.getDate()); document.getElementById('ban-month').value = String(now.getMonth() + 1);
-                document.getElementById('ban-time').value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-            } else {
-                document.getElementById('ban-exact-inputs').style.display = 'none'; document.getElementById('ban-approx-inputs').style.display = 'flex';
-                document.getElementById('ban-hint').innerHTML = 'Кол-во дней до конца тб:';
-            }
-        }
-
-        function getUnixFromInputs(prefix) {
-            const d = parseInt(document.getElementById(`${prefix}-day`).value);
-            const m = parseInt(document.getElementById(`${prefix}-month`).value);
-            const timeStr = document.getElementById(`${prefix}-time`).value.trim();
-            if (!timeStr) return null;
-            const tParts = timeStr.split(':'); const h = parseInt(tParts[0]); const min = parseInt(tParts[1]);
-            if (isNaN(d) || isNaN(m) || isNaN(h) || isNaN(min)) return null;
-            const now = new Date(); let targetYear = now.getFullYear(); if (now.getMonth() === 11 && m === 1) targetYear++; 
-            return Math.floor(new Date(targetYear, m - 1, d, h, min).getTime() / 1000);
-        }
-
-        function saveBanExact() { 
-            const unix = getUnixFromInputs('ban'); if(!unix) return showToast("Укажи время!", "error"); 
-            setButtonLoading('btn-save-exact', true, '💾'); saveTradebanState('ban_exact', unix); 
-        }
-        function saveBanApprox() { 
-            const days = parseInt(document.getElementById('ban-days').value) || 0; 
-            setButtonLoading('btn-save-approx', true, '💾'); saveTradebanState('ban_approx', Math.floor(Date.now() / 1000) + (days * 86400)); 
-        }
-        function saveSnat() {
-            const unix = getUnixFromInputs('snat'); if(!unix) return showToast("Укажи время!", "error");
-            const logNum = document.getElementById('snat-log').value.trim();
-            setButtonLoading('btn-save-snat', true, '💾');
-            saveTradebanState(document.querySelector('input[name="snat_type"]:checked').value, unix + 7 * 86400, logNum);
-        }
-
-        document.getElementById("ban-time").addEventListener("keydown", e => { if (e.key === "Enter") { saveBanExact(); document.getElementById("ban-time").blur();} });
-        document.getElementById("snat-time").addEventListener("keydown", e => { if (e.key === "Enter") { saveSnat(); document.getElementById("snat-time").blur();} });
-        document.getElementById("snat-log").addEventListener("keydown", e => { if (e.key === "Enter") { saveSnat(); document.getElementById("snat-log").blur();} });
-
-        function saveTradebanState(status, timeStamp, logNum = "") {
-            if (!currentUser) return;
-            currentUser.tb_status = status; currentUser.tb_time = timeStamp; currentUser.log = logNum;
-            const userIdx = usersData.findIndex(u => u.id === currentUser.id);
-            if (userIdx > -1) { usersData[userIdx].tb_status = status; usersData[userIdx].tb_time = timeStamp; usersData[userIdx].log = logNum; }
-            
-            document.getElementById('ban-ui').style.display = 'none'; document.getElementById('snat-ui').style.display = 'none';
-            showDetail(currentUser.id, true); filterList(false); 
-            sendSilentCommand({ action: "update_tradeban", steam_id: currentUser.id, tb_status: status, tb_time: timeStamp, log: logNum }, "Сохраняю...", 1500);
-        }
-
-        function fillInputsFromUnix(unix, prefix) {
-            const d = new Date(unix * 1000);
-            document.getElementById(`${prefix}-day`).value = String(d.getDate()); document.getElementById(`${prefix}-month`).value = String(d.getMonth() + 1);
-            document.getElementById(`${prefix}-time`).value = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-        }
-
-        function switchView(id) {
-            ['list-view', 'detail-view', 'settings-view', 'checker-view', 'import-view'].forEach(v => { const el = document.getElementById(v); if(el) el.classList.remove('active-view'); });
-            const target = document.getElementById(id); if(target) target.classList.add('active-view');
-            if (id === 'list-view') filterList(false);
-            if (id === 'checker-view') renderChecker();
-        }
-        function showList() { switchView('list-view'); currentUser = null; document.getElementById('new-user-input').value = ""; }
-        function openSettings() { switchView('settings-view'); }
-
-        function showDetail(id, silentUpdate = false) {
-            currentUser = usersData.find(u => u.id === id); 
-            if(!currentUser) return showList();
-            if(!silentUpdate) switchView('detail-view');
-            
-            document.getElementById('detail-avatar').src = currentUser.avatar || 'https://steamuserimages-a.akamaihd.net/ugc/885384897182110030/F095539864AC9E94AE5236E04C8CA7C2725BCEEA/';
-            document.getElementById('detail-link').href = currentUser.url;
-            document.getElementById('detail-name').innerText = currentUser.name;
-            document.getElementById('detail-id').innerText = currentUser.id;
-            document.getElementById('detail-added-date').innerText = currentUser.added_date ? currentUser.added_date : "Ранее";
-            document.getElementById('detail-device').value = currentUser.device || "";
-            
-            let statusText = currentUser.game ? `🎮 ${currentUser.game}` : (currentUser.status === 1 ? "🟢 В сети" : (currentUser.status === 0 ? "🔴 Оффлайн" : "🟡 Отошел"));
-            document.getElementById('detail-status').innerHTML = statusText;
-            document.getElementById('detail-hours').innerText = currentUser.hours;
-            document.getElementById('detail-inv').innerHTML = colorizeInv(currentUser.inv);
-            
-            if (!silentUpdate) {
-                const sel = document.getElementById('tradeban-select');
-                const banUI = document.getElementById('ban-ui'); const snatUI = document.getElementById('snat-ui');
-                sel.value = currentUser.tb_status && currentUser.tb_status !== "none" ? currentUser.tb_status : "none";
-                banUI.style.display = 'none'; snatUI.style.display = 'none';
+                current_status = profile.get('personastate', 0)
+                current_game = profile.get('gameextrainfo', '')
+                current_name = profile.get('personaname', old_name)
+                current_avatar = profile.get('avatarfull', old_avatar)
                 
-                if (currentUser.tb_status.startsWith('ban_')) {
-                    banUI.style.display = 'flex'; document.querySelector(`input[name="ban_type"][value="${currentUser.tb_status}"]`).checked = true; toggleBanUI();
-                    if (currentUser.tb_status === 'ban_exact' && currentUser.tb_time) fillInputsFromUnix(currentUser.tb_time, 'ban');
-                    else if (currentUser.tb_status === 'ban_approx' && currentUser.tb_time) {
-                        let tl = currentUser.tb_time - Math.floor(Date.now()/1000); document.getElementById('ban-days').value = tl > 0 ? Math.ceil(tl / 86400) : "1";
-                    }
-                } else if (currentUser.tb_status.startsWith('snat')) {
-                    sel.value = 'snat'; snatUI.style.display = 'flex'; document.querySelector(`input[name="snat_type"][value="${currentUser.tb_status}"]`).checked = true;
-                    if (currentUser.tb_time) fillInputsFromUnix(currentUser.tb_time - 7*86400, 'snat');
-                    document.getElementById('snat-log').value = currentUser.log || "";
-                }
-                document.getElementById('detail-note').value = currentUser.note;
-            }
-        }
+                user_link = f"<a href='{profile_url}'><b>{current_name}</b></a>"
+                name_changed = (current_name != old_name) and old_name
+                avatar_changed = (current_avatar != old_avatar) and old_avatar
 
-        function saveSettings() { 
-            showBells = document.getElementById('toggle-bells').checked; localStorage.setItem('showBells', showBells); 
-            allNotifs = document.getElementById('toggle-all-notifs').checked; localStorage.setItem('allNotifs', allNotifs);
-            usePagination = document.getElementById('toggle-pagination').checked; localStorage.setItem('usePagination', usePagination);
-            showLogs = document.getElementById('toggle-logs').checked; localStorage.setItem('showLogs', showLogs);
-            filterList(false); sendSilentCommand({ action: "set_all_notifs", value: allNotifs ? 1 : 0 }, "Настройки сохранены", 1500);
-        }
+                force_inv_check = ("⚠️" in str(old_inv_val))
 
-        document.getElementById("detail-note").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveNote(); document.getElementById("detail-note").blur();} });
+                if current_status != last_status or current_game != last_game or name_changed or avatar_changed or force_inv_check:
+                    cs_hours = await get_cs_hours(session, steam_id)
+                    inv_val = await get_inventory_cs2(session, steam_id)
+                    
+                    if current_status == last_status and current_game == last_game and not name_changed and not avatar_changed and inv_val == old_inv_val:
+                        await asyncio.sleep(0.5)
+                        continue
 
-        function toggleNotif(event, id) {
-            event.stopPropagation();
-            let user = usersData.find(u => u.id === id); user.notif = user.notif ? 0 : 1;
-            filterList(false); sendSilentCommand({ action: "toggle_notif", steam_id: id }, user.notif ? "Уведомления включены" : "Уведомления отключены", 1500);
-        }
+                    async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
+                        await db.execute("UPDATE users SET last_status=?, last_game=?, cs_hours=?, inv_value=?, name=?, avatar=? WHERE steam_id=?", 
+                                         (current_status, current_game, cs_hours, inv_val, current_name, current_avatar, steam_id))
+                        await db.commit()
+                    changed = True
+                    await asyncio.sleep(0.5)
 
-        // --- ЖЕСТКОЕ СОХРАНЕНИЕ ПРИМЕЧАНИЯ ---
-        function saveNote() {
-            if (!currentUser) return;
-            currentUser.note = document.getElementById('detail-note').value;
-            
-            updateLocalCache(currentUser.id, 'note', currentUser.note);
-            
-            const userIdx = usersData.findIndex(u => u.id === currentUser.id);
-            if (userIdx > -1) { usersData[userIdx].note = currentUser.note; }
-            
-            setButtonLoading('btn-save-note', true, '💾');
-            sendSilentCommand({ action: "update_note", steam_id: currentUser.id, note: currentUser.note }, "Примечание сохранено ✅", 1500);
-        }
+                if notif_on:
+                    if name_changed: await send_alert(f"🔄 Пользователь <b>{old_name}</b> сменил ник на {user_link}!")
+                    if all_notifs:
+                        if avatar_changed: await send_alert(f"🖼 Пользователь {user_link} обновил аватарку!")
+                        if current_game != last_game:
+                            if current_game: await send_alert(f"🎮 {user_link} зашел в {current_game}!")
+                            elif last_game: await send_alert(f"⏹ {user_link} вышел из игры.")
+                    if current_status != last_status:
+                        if current_status == 0: msg = f"🔴 {user_link} теперь оффлайн"
+                        elif current_status == 1: msg = f"🟢 {user_link} теперь в сети"
+                        elif current_status in [2, 3, 4]: msg = f"🟡 {user_link} отошел/не беспокоить"
+                        else: continue
+                        await send_alert(msg)
+            except Exception:
+                continue
+    if changed: await trigger_sync()
 
-        function deleteUser(targetId = null) {
-            const idToDelete = targetId || (currentUser ? currentUser.id : null);
-            if (!idToDelete) return;
-            tg.showConfirm("Удалить пользователя из базы?", passed => {
-                if (passed) {
-                    deletedUserIds.add(idToDelete); 
-                    localStorage.setItem('deletedUserIds', JSON.stringify([...deletedUserIds])); 
-                    usersData = usersData.filter(u => u.id !== idToDelete);
-                    filterList(true); if (!targetId) showList();
-                    sendSilentCommand({ action: "delete", steam_id: idToDelete }, "Пользователь удален ❌", 1500);
-                }
-            });
-        }
-    </script>
-</body>
-</html>
+async def main():
+    await init_telegraph()
+    await sync_to_cloud()
+    
+    scheduler.add_job(poll_commands, "interval", seconds=3, max_instances=1)
+    scheduler.add_job(check_statuses, "interval", seconds=60)
+    scheduler.add_job(check_timers, "interval", minutes=2)
+    scheduler.add_job(sync_task, "interval", seconds=5)
+    scheduler.start()
+    
+    await send_alert("🟢 <b>Бот запущен и мониторинг активен!</b>")
+
+    try:
+        await dp.start_polling(bot)
+    finally:
+        await send_alert("🔴 <b>Бот остановлен!</b>")
+        await bot.session.close()
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    asyncio.run(main())

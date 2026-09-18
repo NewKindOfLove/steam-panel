@@ -24,7 +24,7 @@ STEAM_API_KEYS = [
 
 ADMIN_ID = 6739835571  
 DB_NAME = "steam_users.db"
-WEB_APP_URL = "https://newkindoflove.github.io/steam-panel-ui/" 
+WEB_APP_URL = "https://newkindoflove.github.io/steam-panel/" 
 
 GROUP_ID = -1003937921596
 TOPIC_SYSTEM = 3 
@@ -59,6 +59,9 @@ async def telegraph_request(method, **kwargs):
 async def init_telegraph():
     global TG_TOKEN, TG_DB, TG_CMD
     async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
+        # ВКЛЮЧАЕМ WAL МОД (БАЗА БОЛЬШЕ НИКОГДА НЕ ЗАВИСНЕТ ОТ ПОТОКА ДАННЫХ)
+        await db.execute("PRAGMA journal_mode=WAL;")
+        
         await db.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
         await db.execute("""
             CREATE TABLE IF NOT EXISTS users (
@@ -105,7 +108,6 @@ async def init_telegraph():
         await db.execute("INSERT INTO settings (key, value) VALUES ('tg_cmd', ?)", (TG_CMD,))
         await db.commit()
 
-# --- УМНЫЙ СИНХРОНИЗАТОР (ЗАЩИТА ОТ БАНА TELEGRAPH) ---
 async def trigger_sync():
     global needs_sync
     needs_sync = True
@@ -134,11 +136,9 @@ async def sync_to_cloud():
         content = json.dumps([{"tag": "p", "children": chunks if chunks else ["[]"]}])
         res = await telegraph_request("editPage", access_token=TG_TOKEN, path=TG_DB, title="DB", content=content)
         
-        if not res.get("ok"):
-            logging.error(f"Telegraph Sync Error: {res.get('error')}")
-            if "FLOOD_WAIT" in res.get("error", ""):
-                global needs_sync
-                needs_sync = True # Повторим попытку позже, если словили бан
+        if not res.get("ok") and "FLOOD_WAIT" in res.get("error", ""):
+            global needs_sync
+            needs_sync = True 
     except Exception as e:
         logging.error(f"Sync error: {e}")
 
@@ -261,34 +261,35 @@ async def poll_commands():
         empty_content = json.dumps([{"tag": "p", "children": ["[]"]}])
         await telegraph_request("editPage", access_token=TG_TOKEN, path=TG_CMD, title="CMD", content=empty_content)
         
-        changed = False
         async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
             async with aiohttp.ClientSession() as session:
                 for data in cmds:
                     try:
                         action = data.get("action")
                         steam_id = data.get("steam_id")
+                        current_date = datetime.now().strftime("%d.%m.%Y")
                         
                         if action == "force_update":
                             async with db.execute("SELECT steam_id FROM users WHERE is_checker = 0") as cursor:
                                 users_to_update = [row[0] for row in await cursor.fetchall()]
                             
                             async def fetch_update(sid):
-                                profile = await get_steam_profile(session, sid)
-                                if profile:
-                                    hrs = await get_cs_hours(session, sid)
-                                    inv = await get_inventory_cs2(session, sid)
-                                    return (profile.get('personastate', 0), profile.get('gameextrainfo', ''), hrs, inv, profile.get('personaname', 'User'), profile.get('avatarfull', ''), sid)
+                                try:
+                                    profile = await get_steam_profile(session, sid)
+                                    if profile:
+                                        hrs = await get_cs_hours(session, sid)
+                                        inv = await get_inventory_cs2(session, sid)
+                                        return (profile.get('personastate', 0), profile.get('gameextrainfo', ''), hrs, inv, profile.get('personaname', 'User'), profile.get('avatarfull', ''), sid)
+                                except Exception: pass
                                 return None
 
-                            for i in range(0, len(users_to_update), 5):
-                                chunk = users_to_update[i:i+5]
+                            for i in range(0, len(users_to_update), 3):
+                                chunk = users_to_update[i:i+3]
                                 tasks = [fetch_update(sid) for sid in chunk]
                                 results = await asyncio.gather(*tasks)
                                 
                                 for res in results:
-                                    if res:
-                                        await db.execute("UPDATE users SET last_status=?, last_game=?, cs_hours=?, inv_value=?, name=?, avatar=? WHERE steam_id=?", res)
+                                    if res: await db.execute("UPDATE users SET last_status=?, last_game=?, cs_hours=?, inv_value=?, name=?, avatar=? WHERE steam_id=?", res)
                                 await db.commit()
                                 await trigger_sync()
                                 await asyncio.sleep(1)
@@ -301,70 +302,79 @@ async def poll_commands():
                                 await db.execute("""
                                     UPDATE users SET last_status=?, last_game=?, cs_hours=?, inv_value=?, name=?, avatar=? WHERE steam_id=?
                                 """, (profile.get('personastate', 0), profile.get('gameextrainfo', ''), cs_hours, inv_val, profile.get('personaname', 'User'), profile.get('avatarfull', ''), steam_id))
-                            await trigger_sync()
+                                await db.commit()
+                                await trigger_sync()
 
                         elif action == "checker_scan":
                             url = data.get("url", "").strip()
-                            new_steam_id = await resolve_vanity_url(session, url)
-                            if new_steam_id:
-                                profile = await get_steam_profile(session, new_steam_id)
-                                name = profile.get('personaname', 'ОШИБКА Steam') if profile else 'ОШИБКА Steam'
-                                avatar = profile.get('avatarfull', '') if profile else ''
-                                status = profile.get('personastate', 0) if profile else 0
-                                # ИСПРАВЛЕНИЕ URL ДЛЯ ЧЕКЕРА
-                                real_url = profile.get('profileurl', url) if profile else url
-                                
-                                cs_hours = await get_cs_hours(session, new_steam_id)
-                                inv_cs = await get_inventory_cs2(session, new_steam_id)
-                                chk_id = f"chk_{new_steam_id}"
-                                await db.execute("""
-                                    INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, 1, '')
-                                """, (chk_id, name, avatar, real_url, status, cs_hours, inv_cs))
-                            else:
-                                chk_id = f"chk_{url}"
-                                await db.execute("""
-                                    INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, 1, '')
-                                """, (chk_id, "❌ Не найдено", "", url, 0, "...", "Ошибка"))
-                                await send_alert(f"❌ Чекер: Неверная ссылка ({url})", is_system=True)
+                            try:
+                                new_steam_id = await resolve_vanity_url(session, url)
+                                if new_steam_id:
+                                    profile = await get_steam_profile(session, new_steam_id)
+                                    name = profile.get('personaname', 'ОШИБКА Steam') if profile else 'ОШИБКА Steam'
+                                    avatar = profile.get('avatarfull', '') if profile else ''
+                                    status = profile.get('personastate', 0) if profile else 0
+                                    real_url = profile.get('profileurl', url) if profile else url
+                                    
+                                    cs_hours = await get_cs_hours(session, new_steam_id)
+                                    inv_cs = await get_inventory_cs2(session, new_steam_id)
+                                    chk_id = f"chk_{new_steam_id}"
+                                    await db.execute("""
+                                        INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, 1, '')
+                                    """, (chk_id, name, avatar, real_url, status, cs_hours, inv_cs))
+                                else:
+                                    chk_id = f"chk_{url.split('/')[-1]}"
+                                    await db.execute("""
+                                        INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, 1, '')
+                                    """, (chk_id, "❌ Не найдено", "", url, 0, "...", "Ошибка"))
+                                    await send_alert(f"❌ Чекер: Неверная ссылка ({url})", is_system=True)
+                            except Exception:
+                                pass
+                            await db.commit()
                             await trigger_sync()
 
                         elif action == "add_users_batch":
                             urls = data.get("urls", [])
                             added_count = 0
-                            current_date = datetime.now().strftime("%d.%m.%Y")
 
-                            async def process_import_single(url):
+                            # БРОНЕБОЙНАЯ ФУНКЦИЯ (НИКОГДА НЕ ВЫКИДЫВАЕТ ОШИБКУ)
+                            async def fetch_user_data(url):
                                 try:
                                     sid = await resolve_vanity_url(session, url)
-                                    if not sid: return (url, url, "❌ Ошибка ссылки", "", 0, "...", "Ошибка")
+                                    if not sid:
+                                        fallback_id = url.split('/')[-1] if '/' in url else url
+                                        return (fallback_id, url, "❌ Ошибка ссылки", "", 0, "...", "Ошибка")
                                     
                                     profile = await get_steam_profile(session, sid)
                                     name = profile.get('personaname', 'ОШИБКА Steam') if profile else 'ОШИБКА Steam'
                                     avatar = profile.get('avatarfull', '') if profile else ''
                                     status = profile.get('personastate', 0) if profile else 0
-                                    # ИСПРАВЛЕНИЕ URL!
                                     real_url = profile.get('profileurl', url) if profile else url
                                     
                                     hrs = await get_cs_hours(session, sid)
                                     inv = await get_inventory_cs2(session, sid)
                                     return (sid, real_url, name, avatar, status, hrs, inv)
-                                except Exception:
-                                    return None
+                                except Exception as e:
+                                    fallback_id = url.split('/')[-1] if '/' in url else url
+                                    return (fallback_id, url, "❌ Ошибка / Таймаут", "", 0, "...", "Ошибка")
 
-                            for i in range(0, len(urls), 5):
-                                chunk = urls[i:i+5]
-                                tasks = [process_import_single(u) for u in chunk]
+                            # Парсим пачками по 3 штуки, чтобы API не банило
+                            for i in range(0, len(urls), 3):
+                                chunk = urls[i:i+3]
+                                tasks = [fetch_user_data(u) for u in chunk]
                                 results = await asyncio.gather(*tasks)
                                 
                                 chunk_added = 0
                                 for res in results:
-                                    if not res: continue
                                     sid, real_url, name, avatar, status, hrs, inv = res
                                     
+                                    async with db.execute("SELECT steam_id FROM users WHERE steam_id = ?", (sid,)) as cursor:
+                                        if await cursor.fetchone(): continue
+                                        
                                     await db.execute("""
-                                        INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications)
+                                        INSERT INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications)
                                         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0)
                                     """, (sid, name, avatar, real_url, status, hrs, inv, current_date))
                                     chunk_added += 1
@@ -376,54 +386,67 @@ async def poll_commands():
                                 await asyncio.sleep(1)
 
                             if added_count > 0:
-                                await send_alert(f"✅ Массовый импорт завершен: обработано {added_count} профилей!", parse_mode="HTML")
+                                await send_alert(f"✅ Массовый импорт завершен: добавлено {added_count} пользователей!", parse_mode="HTML")
 
                         elif action == "add_user":
                             url = data.get("url", "").strip()
-                            new_steam_id = await resolve_vanity_url(session, url)
-                            current_date = datetime.now().strftime("%d.%m.%Y")
+                            try:
+                                new_steam_id = await resolve_vanity_url(session, url)
+                                if not new_steam_id:
+                                    fallback_id = url.split('/')[-1] if '/' in url else url
+                                    await db.execute("""
+                                        INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0)
+                                    """, (fallback_id, "❌ Ошибка ссылки", "", url, 0, "...", "Ошибка", current_date))
+                                else:
+                                    async with db.execute("SELECT steam_id FROM users WHERE steam_id = ?", (new_steam_id,)) as cursor:
+                                        if not await cursor.fetchone():
+                                            profile = await get_steam_profile(session, new_steam_id)
+                                            name = profile.get('personaname', 'ОШИБКА Steam') if profile else 'ОШИБКА Steam'
+                                            avatar = profile.get('avatarfull', '') if profile else ''
+                                            status = profile.get('personastate', 0) if profile else 0
+                                            real_url = profile.get('profileurl', url) if profile else url
+                                            
+                                            cs_hours = await get_cs_hours(session, new_steam_id)
+                                            inv_val = await get_inventory_cs2(session, new_steam_id)
+                                            
+                                            await db.execute("""
+                                                INSERT INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications)
+                                                VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0)
+                                            """, (new_steam_id, name, avatar, real_url, status, cs_hours, inv_val, current_date))
+                            except Exception as e:
+                                fallback_id = url.split('/')[-1] if '/' in url else url
+                                await db.execute("""
+                                    INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0)
+                                """, (fallback_id, "❌ Ошибка / Таймаут", "", url, 0, "...", "Ошибка", current_date))
                             
-                            if not new_steam_id:
-                                # ДОБАВЛЯЕМ ОШИБКУ В БАЗУ, ЧТОБЫ ИНТЕРФЕЙС УБРАЛ ЗАГРУЗКУ
-                                await db.execute("""
-                                    INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0)
-                                """, (url, "❌ Ошибка ссылки", "", url, 0, "...", "Ошибка", current_date))
-                            else:
-                                profile = await get_steam_profile(session, new_steam_id)
-                                name = profile.get('personaname', 'ОШИБКА Steam') if profile else 'ОШИБКА Steam'
-                                avatar = profile.get('avatarfull', '') if profile else ''
-                                status = profile.get('personastate', 0) if profile else 0
-                                # ИСПРАВЛЕНИЕ URL!
-                                real_url = profile.get('profileurl', url) if profile else url
-                                
-                                cs_hours = await get_cs_hours(session, new_steam_id)
-                                inv_val = await get_inventory_cs2(session, new_steam_id)
-                                await db.execute("""
-                                    INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0)
-                                """, (new_steam_id, name, avatar, real_url, status, cs_hours, inv_val, current_date))
+                            await db.commit()
                             await trigger_sync()
 
                         elif action == "approve_checker":
                             if steam_id.startswith("chk_"):
                                 real_id = steam_id[4:]
-                                current_date = datetime.now().strftime("%d.%m.%Y")
                                 await db.execute("DELETE FROM users WHERE steam_id = ?", (real_id,))
                                 await db.execute("UPDATE users SET steam_id = ?, is_checker = 0, added_date = ? WHERE steam_id = ?", (real_id, current_date, steam_id))
+                                await db.commit()
                                 await trigger_sync()
                         elif action == "set_all_notifs":
                             val = '1' if data.get("value") else '0'
                             await db.execute("UPDATE settings SET value = ? WHERE key = 'all_notifs'", (val,))
+                            await db.commit()
                             await trigger_sync()
                         elif action == "update_note":
                             await db.execute("UPDATE users SET note = ? WHERE steam_id = ?", (data.get("note", ""), steam_id))
+                            await db.commit()
                             await trigger_sync()
                         elif action == "update_tradeban":
                             await db.execute("UPDATE users SET tb_status = ?, tb_time = ?, log_number = ? WHERE steam_id = ?", (data.get("tb_status"), data.get("tb_time"), data.get("log", ""), steam_id))
+                            await db.commit()
                             await trigger_sync()
                         elif action == "delete":
                             await db.execute("DELETE FROM users WHERE steam_id = ?", (steam_id,))
+                            await db.commit()
                             await trigger_sync()
                         elif action == "toggle_notif":
                             async with db.execute("SELECT notifications FROM users WHERE steam_id = ?", (steam_id,)) as cursor:
@@ -431,13 +454,12 @@ async def poll_commands():
                                 if row:
                                     new_notif = 0 if row[0] else 1
                                     await db.execute("UPDATE users SET notifications = ? WHERE steam_id = ?", (new_notif, steam_id))
+                                    await db.commit()
                                     await trigger_sync()
                                     
                     except Exception as e:
                         logging.error(f"Error processing command {data}: {e}")
                         continue
-
-            await db.commit()
     except Exception as e:
         logging.error(f"Poll General Error: {e}")
 
@@ -543,8 +565,6 @@ async def main():
     scheduler.add_job(poll_commands, "interval", seconds=3, max_instances=1)
     scheduler.add_job(check_statuses, "interval", seconds=60)
     scheduler.add_job(check_timers, "interval", minutes=2)
-    
-    # ФОНОВЫЙ ЗАЩИТНИК ОТ БАНА TELEGRAPH (ОБНОВЛЯЕТ МАКСИМУМ 1 РАЗ В 5 СЕК)
     scheduler.add_job(sync_task, "interval", seconds=5)
     scheduler.start()
     

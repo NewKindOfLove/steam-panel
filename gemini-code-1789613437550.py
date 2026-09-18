@@ -22,7 +22,7 @@ STEAM_API_KEYS = [
     "354B4A89A071C82E0213772519B80AAA"
 ]
 
-ADMIN_ID = 6739835571  
+ADMIN_ID = 6739835571  # 🔴 СТРОГО ТВОЯ ЛИЧКА (БОТ ПИШЕТ ТОЛЬКО СЮДА)
 DB_NAME = "steam_users.db"
 WEB_APP_URL = "https://newkindoflove.github.io/steam-panel/index.html" 
 
@@ -36,8 +36,8 @@ TG_CMD = None
 
 needs_sync = False
 
+# --- 1 ЕДИНСТВЕННОЕ ЖЕЛЕЗНОЕ СООБЩЕНИЕ В ЛИЧКЕ БОТА ---
 async def send_alert(text):
-    chat_id = ADMIN_ID
     now = datetime.now().strftime("%d.%m %H:%M:%S")
     log_line = f"[{now}] {text}"
     
@@ -61,15 +61,15 @@ async def send_alert(text):
     try:
         if notif_msg_id:
             try:
-                await bot.edit_message_text(full_text, chat_id=chat_id, message_id=notif_msg_id, parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
+                await bot.edit_message_text(full_text, chat_id=ADMIN_ID, message_id=notif_msg_id, parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
             except Exception as e:
                 if "message is not modified" not in str(e).lower():
-                    msg = await bot.send_message(chat_id, full_text, parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
+                    msg = await bot.send_message(ADMIN_ID, full_text, parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
                     async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
                         await db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('notif_msg_id', ?)", (str(msg.message_id),))
                         await db.commit()
         else:
-            msg = await bot.send_message(chat_id, full_text, parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
+            msg = await bot.send_message(ADMIN_ID, full_text, parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
             async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
                 await db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('notif_msg_id', ?)", (str(msg.message_id),))
                 await db.commit()
@@ -268,7 +268,7 @@ async def get_inventory_cs2(session, steam_id):
     
     return "Неизвестно ⚠️"
 
-# --- ОСНОВНОЙ ЦИКЛ ОБРАБОТКИ ---
+# --- ОСНОВНОЙ ЦИКЛ ОБРАБОТКИ (С ЗАЩИТОЙ ОТ ОШИБОК) ---
 async def poll_commands():
     if not TG_TOKEN: return
     try:
@@ -345,18 +345,17 @@ async def poll_commands():
                                     inv_cs = await get_inventory_cs2(session, new_steam_id)
                                     chk_id = f"chk_{new_steam_id}"
                                     await db.execute("""
-                                        INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date)
+                                        INSERT OR IGNORE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date)
                                         VALUES (?, ?, ?, ?, ?, ?, ?, 1, '')
                                     """, (chk_id, name, avatar, real_url, status, cs_hours, inv_cs))
                                 else:
                                     chk_id = f"chk_{url.split('/')[-1]}"
                                     await db.execute("""
-                                        INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date)
+                                        INSERT OR IGNORE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date)
                                         VALUES (?, ?, ?, ?, ?, ?, ?, 1, '')
                                     """, (chk_id, "❌ Не найдено", "", url, 0, "...", "Ошибка"))
-                                    await send_alert(f"❌ Чекер: Неверная ссылка ({url})")
-                            except Exception:
-                                pass
+                            except Exception as e:
+                                logging.error(f"Checker error: {e}")
                             await db.commit()
                             await trigger_sync()
 
@@ -391,16 +390,18 @@ async def poll_commands():
                                 
                                 chunk_added = 0
                                 for res in results:
-                                    sid, real_url, name, avatar, status, hrs, inv = res
-                                    
-                                    async with db.execute("SELECT steam_id FROM users WHERE steam_id = ?", (sid,)) as cursor:
-                                        if await cursor.fetchone(): continue
-                                        
-                                    await db.execute("""
-                                        INSERT INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications)
-                                        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0)
-                                    """, (sid, name, avatar, real_url, status, hrs, inv, current_date))
-                                    chunk_added += 1
+                                    try:
+                                        sid, real_url, name, avatar, status, hrs, inv = res
+                                        async with db.execute("SELECT steam_id FROM users WHERE steam_id = ?", (sid,)) as cursor:
+                                            if await cursor.fetchone(): continue
+                                            
+                                        await db.execute("""
+                                            INSERT OR IGNORE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications, device_name)
+                                            VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, '')
+                                        """, (sid, name, avatar, real_url, status, hrs, inv, current_date))
+                                        chunk_added += 1
+                                    except Exception as e:
+                                        logging.error(f"Error adding batch user: {e}")
                                     
                                 added_count += chunk_added
                                 if chunk_added > 0:
@@ -418,8 +419,8 @@ async def poll_commands():
                                 if not new_steam_id:
                                     fallback_id = url.split('/')[-1] if '/' in url else url
                                     await db.execute("""
-                                        INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications)
-                                        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0)
+                                        INSERT OR IGNORE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications, device_name)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, '')
                                     """, (fallback_id, "❌ Ошибка ссылки", "", url, 0, "...", "Ошибка", current_date))
                                 else:
                                     async with db.execute("SELECT steam_id FROM users WHERE steam_id = ?", (new_steam_id,)) as cursor:
@@ -434,14 +435,14 @@ async def poll_commands():
                                             inv_val = await get_inventory_cs2(session, new_steam_id)
                                             
                                             await db.execute("""
-                                                INSERT INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications)
-                                                VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0)
+                                                INSERT OR IGNORE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications, device_name)
+                                                VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, '')
                                             """, (new_steam_id, name, avatar, real_url, status, cs_hours, inv_val, current_date))
                             except Exception as e:
                                 fallback_id = url.split('/')[-1] if '/' in url else url
                                 await db.execute("""
-                                    INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0)
+                                    INSERT OR IGNORE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications, device_name)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, '')
                                 """, (fallback_id, "❌ Ошибка / Таймаут", "", url, 0, "...", "Ошибка", current_date))
                             
                             await db.commit()
@@ -450,7 +451,7 @@ async def poll_commands():
                         elif action == "update_device":
                             await db.execute("UPDATE users SET device_name = ? WHERE steam_id = ?", (data.get("device", ""), steam_id))
                             await db.commit()
-                            await sync_to_cloud() # ЖЕСТКАЯ ПРИНУДИТЕЛЬНАЯ ЗАПИСЬ В ОБЛАКО БЕЗ ЗАДЕРЖЕК
+                            await sync_to_cloud() 
 
                         elif action == "approve_checker":
                             if steam_id.startswith("chk_"):
@@ -467,7 +468,7 @@ async def poll_commands():
                         elif action == "update_note":
                             await db.execute("UPDATE users SET note = ? WHERE steam_id = ?", (data.get("note", ""), steam_id))
                             await db.commit()
-                            await sync_to_cloud() # ЖЕСТКАЯ ПРИНУДИТЕЛЬНАЯ ЗАПИСЬ
+                            await sync_to_cloud() 
                         elif action == "update_tradeban":
                             await db.execute("UPDATE users SET tb_status = ?, tb_time = ?, log_number = ? WHERE steam_id = ?", (data.get("tb_status"), data.get("tb_time"), data.get("log", ""), steam_id))
                             await db.commit()
@@ -494,7 +495,7 @@ async def poll_commands():
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
     if message.chat.type != "private":
-        return await message.answer("❌ Панель управления доступна только в личных сообщениях с ботом!")
+        return await message.answer("❌ Панель доступна только в личных сообщениях с ботом!")
         
     final_url = f"{WEB_APP_URL}?t={TG_TOKEN}&d={TG_DB}&c={TG_CMD}"
     kb = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🌐 Открыть панель", web_app=WebAppInfo(url=final_url))]], resize_keyboard=True, is_persistent=True)
@@ -510,7 +511,7 @@ async def check_timers():
         for ban in ready_bans:
             steam_id, name, url, status = ban
             approx_str = " (примерно)" if status == "ban_approx" else ""
-            await send_alert(f"🔓 <b>РАЗБЛОКИРОВКА!</b> У пользователя <a href='{url}'>{name}</a> разбанились предметы{approx_str}!")
+            await send_alert(f"🔓 У пользователя <a href='{url}'>{name}</a> разбанились предметы{approx_str}!")
             await db.execute("UPDATE users SET tb_status = 'ready', tb_time = 0 WHERE steam_id = ?", (steam_id,))
             changed = True
             
@@ -570,12 +571,12 @@ async def check_statuses():
                     await asyncio.sleep(0.5)
 
                 if notif_on:
-                    if name_changed: await send_alert(f"🔄 Пользователь <b>{old_name}</b> сменил ник на {user_link}!")
+                    if name_changed: await send_alert(f"🔄 <b>{old_name}</b> сменил ник на {user_link}")
                     if all_notifs:
-                        if avatar_changed: await send_alert(f"🖼 Пользователь {user_link} обновил аватарку!")
+                        if avatar_changed: await send_alert(f"🖼 {user_link} обновил аватарку")
                         if current_game != last_game:
-                            if current_game: await send_alert(f"🎮 {user_link} зашел в {current_game}!")
-                            elif last_game: await send_alert(f"⏹ {user_link} вышел из игры.")
+                            if current_game: await send_alert(f"🎮 {user_link} зашел в {current_game}")
+                            elif last_game: await send_alert(f"⏹ {user_link} вышел из игры")
                     if current_status != last_status:
                         if current_status == 0: msg = f"🔴 {user_link} теперь оффлайн"
                         elif current_status == 1: msg = f"🟢 {user_link} теперь в сети"

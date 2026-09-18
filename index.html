@@ -149,7 +149,6 @@
     <!-- 3. КАРТОЧКА ЮЗЕРА -->
     <div class="container" id="detail-view">
         
-        <!-- ГАРМОНИЧНЫЙ NAV-BAR СО ВСТРОЕННЫМ ПОЛЕМ ПК -->
         <div class="nav-bar" style="align-items: center; gap: 8px; margin-bottom: 20px;">
             <button class="sq-btn btn-secondary" style="flex-shrink: 0;" onclick="showList()">◀</button>
             
@@ -287,7 +286,7 @@
         let currentFilteredData = [];
         let deletedUserIds = new Set(JSON.parse(localStorage.getItem('deletedUserIds') || '[]'));
         
-        // ЖЕСТКИЙ КЭШ: Чтобы панель не затирала данные до ответа сервера
+        // ЖЕСТКИЙ ЛОКАЛЬНЫЙ КЭШ: Сохраняет ПК и Заметки намертво
         let localCache = JSON.parse(localStorage.getItem('steamLocalCache') || '{}');
         function updateLocalCache(id, key, value) {
             if (!localCache[id]) localCache[id] = {};
@@ -367,13 +366,6 @@
             setButtonLoading('btn-checker-search', false, '🔍');
         }
 
-        // УМНЫЙ ПАРСЕР ССЫЛОК ДЛЯ СТЫКОВКИ (Избавляет от бесконечной загрузки)
-        function getSteamIdFromUrl(url) {
-            if (!url) return "";
-            let parts = url.split('/').filter(x => x);
-            return parts[parts.length - 1].toLowerCase();
-        }
-
         async function fetchLiveDB(manual = false) {
             if (!DB_PATH || isEditing || pendingCommandsCount > 0) return; 
             try {
@@ -386,7 +378,7 @@
                 }
                 let rawData = JSON.parse(jsonStr || "[]");
                 
-                // Применяем локальный кэш, чтобы введенные данные не стирались
+                // Накатываем жесткий локальный кэш
                 usersData = rawData.filter(u => !deletedUserIds.has(u.id)).map(u => {
                     if (localCache[u.id]) {
                         if (localCache[u.id].device !== undefined) u.device = localCache[u.id].device;
@@ -395,14 +387,15 @@
                     return u;
                 });
 
-                pendingUsers = pendingUsers.filter(p => (Date.now() - p.timestamp) < 300000);
+                // УБИВАЕМ БЕСКОНЕЧНУЮ ЗАГРУЗКУ (Максимум 8 секунд висит)
+                pendingUsers = pendingUsers.filter(p => (Date.now() - p.timestamp) < 8000);
                 
-                // Идеальная стыковка: панель понимает, что "Way" и "https://steamcommunity.com/id/Way" — это одно и то же
-                pendingUsers = pendingUsers.filter(p => !usersData.some(u => {
-                    let uId = getSteamIdFromUrl(u.url || u.id);
-                    let pId = getSteamIdFromUrl(p.url || p.id);
-                    return u.id === p.id || uId === pId || (p.id.startsWith('chk_') && u.id === p.id);
-                }));
+                pendingUsers = pendingUsers.filter(p => !usersData.some(u => 
+                    u.id === p.id || 
+                    (u.url && p.url && u.url.toLowerCase() === p.url.toLowerCase()) || 
+                    (u.url && u.url.toLowerCase().includes(p.id.toLowerCase())) ||
+                    (p.id.startsWith('chk_') && u.id === p.id)
+                ));
 
                 usersData.unshift(...pendingUsers);
                 
@@ -475,6 +468,7 @@
                     pendingCommandsCount--;
                     if (pendingCommandsCount <= 0) { pendingCommandsCount = 0; fetchLiveDB(false); }
                     resetAllButtons();
+                    if(cmdObj.action === "force_update" || cmdObj.action === "force_update_single" || cmdObj.action === "update_device") showToast("Успешно! ✅", "success");
                     isCommandSending = false;
                     processCommandQueue();
                 }, timeoutMs);
@@ -680,13 +674,13 @@
         document.getElementById("new-user-input").addEventListener("keydown", e => { if (e.key === "Enter") addUserFromInput(); });
         document.getElementById("detail-device").addEventListener("keydown", e => { if (e.key === "Enter") { saveDevice(); document.getElementById("detail-device").blur();} });
 
-        // --- ЖЕСТКОЕ СОХРАНЕНИЕ УСТРОЙСТВА ---
+        // --- ЖЕСТКОЕ СОХРАНЕНИЕ УСТРОЙСТВА С КЭШЕМ ---
         function saveDevice() {
             if (!currentUser) return;
             let newDevice = document.getElementById('detail-device').value.trim();
             currentUser.device = newDevice;
             
-            // Записываем в локальный кэш браузера, чтобы оно не стерлось при обновлении!
+            // Записываем намертво в память телефона
             updateLocalCache(currentUser.id, 'device', newDevice);
             
             let userIdx = usersData.findIndex(u => u.id === currentUser.id);
@@ -882,7 +876,7 @@
             filterList(false); sendSilentCommand({ action: "toggle_notif", steam_id: id }, user.notif ? "Уведомления включены" : "Уведомления отключены", 1500);
         }
 
-        // --- ЖЕСТКОЕ СОХРАНЕНИЕ ПРИМЕЧАНИЯ ---
+        // --- ЖЕСТКОЕ СОХРАНЕНИЕ ЗАМЕТКИ С КЭШЕМ ---
         function saveNote() {
             if (!currentUser) return;
             currentUser.note = document.getElementById('detail-note').value;

@@ -24,7 +24,8 @@ STEAM_API_KEYS = [
 
 ADMIN_ID = 6739835571  
 DB_NAME = "steam_users.db"
-WEB_APP_URL = "https://newkindoflove.github.io/steam-panel/" 
+# ЖЕСТКАЯ ССЫЛКА С УКАЗАНИЕМ ФАЙЛА INDEX.HTML
+WEB_APP_URL = "https://newkindoflove.github.io/steam-panel/index.html" 
 
 GROUP_ID = -1003937921596
 TOPIC_SYSTEM = 3 
@@ -339,7 +340,6 @@ async def poll_commands():
                             urls = data.get("urls", [])
                             added_count = 0
 
-                            # БРОНЕБОЙНАЯ ФУНКЦИЯ (НИКОГДА НЕ ВЫКИДЫВАЕТ ОШИБКУ)
                             async def fetch_user_data(url):
                                 try:
                                     sid = await resolve_vanity_url(session, url)
@@ -360,7 +360,6 @@ async def poll_commands():
                                     fallback_id = url.split('/')[-1] if '/' in url else url
                                     return (fallback_id, url, "❌ Ошибка / Таймаут", "", 0, "...", "Ошибка")
 
-                            # Парсим пачками по 3 штуки, чтобы API не банило
                             for i in range(0, len(urls), 3):
                                 chunk = urls[i:i+3]
                                 tasks = [fetch_user_data(u) for u in chunk]

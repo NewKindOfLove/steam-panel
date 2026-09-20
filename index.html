@@ -30,7 +30,7 @@
         .user-name-text { font-size: 15px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; }
         .user-inv-text { font-size: 12px; font-weight: bold; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         
-        .device-badge { color: #888888; font-size: 11px; font-weight: normal; background-color: #1a1a1a; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; cursor: pointer; transition: 0.2s; border: 1px solid #2a2a2a; margin-top: 5px;}
+        .device-badge { color: #888888; font-size: 11px; font-weight: normal; background-color: #1a1a1a; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; cursor: pointer; transition: 0.2s; border: 1px solid #2a2a2a;}
         .device-badge:active { background-color: #333333; color: #ffffff; }
 
         .bell-icon { font-size: 16px; padding: 5px; cursor: pointer; position: absolute; top: 4px; right: 4px; }
@@ -149,7 +149,6 @@
     <!-- 3. КАРТОЧКА ЮЗЕРА -->
     <div class="container" id="detail-view">
         
-        <!-- ГАРМОНИЧНЫЙ NAV-BAR СО ВСТРОЕННЫМ ПОЛЕМ ПК -->
         <div class="nav-bar" style="align-items: center; gap: 8px; margin-bottom: 20px;">
             <button class="sq-btn btn-secondary" style="flex-shrink: 0;" onclick="showList()">◀</button>
             
@@ -175,16 +174,22 @@
             <div class="stat-row"><span>Часов в CS:</span> <span class="stat-value" id="detail-hours"></span></div>
             <div class="stat-row"><span>Инвентарь:</span> <span class="stat-value" id="detail-inv"></span></div>
             
-            <div class="stat-row" style="margin-top: 10px;">
-                <span>Параметр:</span>
-                <div style="display:flex; align-items:center;">
-                    <select id="tradeban-select" onchange="handleTradebanChange()">
+            <!-- ГАРМОНИЧНЫЙ БЛОК ПАРАМЕТРА И НЕЗАВИСИМОЙ СУММЫ -->
+            <div class="stat-row" style="margin-top: 10px; display: flex; align-items: center; justify-content: space-between;">
+                <div style="display:flex; align-items:center; gap: 6px;">
+                    <span>Параметр:</span>
+                    <select id="tradeban-select" onchange="handleTradebanChange()" style="width: 105px;">
                         <option value="none" style="display:none;">Нет статуса</option>
                         <option value="ban">Трейдбан</option>
                         <option value="ready">Можно снимать</option>
                         <option value="snat">Снят</option>
                         <option value="unbanned">Разбанился</option>
                     </select>
+                </div>
+                
+                <div style="display:flex; align-items:center; position: relative;">
+                    <input type="text" id="detail-custom-sum" placeholder="Сумма ($)" style="width: 95px; height: 32px; background-color: #151515; color: #ffffff; border: 1px solid #333333; border-radius: 5px; padding: 0 32px 0 8px; font-size: 13px; outline: none; box-sizing: border-box; font-weight: bold; text-align: center;">
+                    <button id="btn-save-sum" onclick="saveCustomSum()" style="position: absolute; right: 2px; top: 2px; bottom: 2px; width: 28px; background-color: #252525; border: 1px solid #333333; border-radius: 4px; font-size: 12px; color: #ffffff; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s;">💾</button>
                 </div>
             </div>
             
@@ -285,11 +290,8 @@
         let currentUser = null;
         let usersData = [];
         let currentFilteredData = [];
-        
-        // Убрали вечную память об удаленных, теперь панель прощает всё
         let deletedUserIds = new Set();
         
-        // ПОЛНЫЙ ЛОКАЛЬНЫЙ КЭШ: Сохраняет все параметры моментально, чтобы интерфейс не "прыгал"
         let localCache = JSON.parse(localStorage.getItem('steamLocalCache') || '{}');
         function updateLocalCache(id, key, value) {
             if (!localCache[id]) localCache[id] = {};
@@ -366,6 +368,7 @@
             setButtonLoading('btn-save-snat', false, '💾');
             setButtonLoading('btn-save-note', false, '💾');
             setButtonLoading('btn-save-device', false, '💾');
+            setButtonLoading('btn-save-sum', false, '💾');
             setButtonLoading('btn-checker-search', false, '🔍');
         }
 
@@ -389,7 +392,6 @@
                 }
                 let rawData = JSON.parse(jsonStr || "[]");
                 
-                // Применяем локальный кэш (включая статусы), чтобы интерфейс не сбрасывался
                 usersData = rawData.map(u => {
                     if (localCache[u.id]) {
                         if (localCache[u.id].device !== undefined) u.device = localCache[u.id].device;
@@ -397,13 +399,12 @@
                         if (localCache[u.id].tb_status !== undefined) u.tb_status = localCache[u.id].tb_status;
                         if (localCache[u.id].tb_time !== undefined) u.tb_time = localCache[u.id].tb_time;
                         if (localCache[u.id].log !== undefined) u.log = localCache[u.id].log;
+                        if (localCache[u.id].custom_sum !== undefined) u.custom_sum = localCache[u.id].custom_sum;
                     }
                     return u;
                 });
 
-                // Загрузка висит максимум 60 секунд
                 pendingUsers = pendingUsers.filter(p => (Date.now() - p.timestamp) < 60000);
-                
                 pendingUsers = pendingUsers.filter(p => !usersData.some(u => {
                     return extractId(u.id) === extractId(p.id) || extractId(u.url) === extractId(p.id) || (p.id.startsWith('chk_') && u.id === p.id);
                 }));
@@ -423,6 +424,7 @@
                         document.getElementById('detail-hours').innerText = upUser.hours;
                         document.getElementById('detail-inv').innerHTML = colorizeInv(upUser.inv);
                         if(document.activeElement.id !== 'detail-device') document.getElementById('detail-device').value = upUser.device || "";
+                        if(document.activeElement.id !== 'detail-custom-sum') document.getElementById('detail-custom-sum').value = upUser.custom_sum || "";
                     } else { showList(); }
                 }
                 if (manual) showToast("Данные обновлены ✅", "success");
@@ -475,7 +477,6 @@
                 
                 await fetch(`https://api.telegra.ph/editPage/${CMD_PATH}`, { method: "POST", body: formData });
 
-                // МОМЕНТАЛЬНЫЙ УСПЕХ: Выводим зеленую плашку, чтобы не висело "Сохраняю..."
                 if (toastMsg && !toastMsg.includes("Отправлено")) {
                     showToast("Успешно! ✅", "success");
                 }
@@ -486,7 +487,7 @@
                     resetAllButtons();
                     isCommandSending = false;
                     processCommandQueue();
-                }, 300); // Интерфейс реагирует за долю секунды
+                }, 300);
 
             } catch(e) { 
                 updateBotStatus(false);
@@ -520,6 +521,32 @@
             return formatted;
         }
 
+        // АЛГОРИТМ ФОРМАТИРОВАНИЯ СУММЫ (По всем твоим правилам)
+        function formatCustomSum(sumStr) {
+            if (!sumStr) return "";
+            let numStr = sumStr.toString().replace(/[^0-9.,]/g, '').replace(',', '.');
+            if (!numStr) return "";
+            let num = parseFloat(numStr);
+            if (isNaN(num)) return "";
+
+            let parts = num.toString().split(".");
+            parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+            let formattedNum = parts.join(".");
+
+            let dollar = `<span style="color: #4CAF50;">$</span>`;
+            let sumHtml = "";
+
+            if (num >= 1000) {
+                sumHtml = `<span style="color: #00FF00; text-shadow: 0 0 8px #00FF00; font-weight: 900; font-size: 13px; letter-spacing: 0.5px;">${formattedNum}</span>`;
+            } else if (num >= 100) {
+                sumHtml = `<span style="color: #4CAF50; font-weight: 800; font-size: 13px;">${formattedNum}</span>`;
+            } else {
+                sumHtml = `<span style="color: #FFC107; font-weight: 800; font-size: 13px;">${formattedNum}</span>`;
+            }
+
+            return `<div style="background-color: #1a1a1a; padding: 2px 6px; border-radius: 4px; border: 1px solid #2a2a2a; display: inline-flex; align-items: center; justify-content: center; gap: 2px; cursor: pointer;" onclick="copyIdFromList(event, '${numStr}')">${sumHtml}${dollar}</div>`;
+        }
+
         function formatTimeLeft(targetTime) {
             let tl = targetTime - Math.floor(Date.now() / 1000);
             if (tl <= 0) return "Истекает...";
@@ -545,7 +572,10 @@
                 else if (user.tb_status === "unbanned") tbText = `<div class="tb-status-text" style="color: #4CAF50; font-weight: 800;">💸 Разбанился 💸</div>`;
 
                 let showId = user.id.startsWith('http') || user.id.startsWith('imp_') ? "..." : user.id;
-                let deviceHtml = user.device ? `<div><span class="device-badge" onclick="copyIdFromList(event, '${user.device}')">💻 ${user.device}</span></div>` : "";
+                let deviceHtml = user.device ? `<span class="device-badge" onclick="copyIdFromList(event, '${user.device}')">💻 ${user.device}</span>` : "";
+                let sumHtml = user.custom_sum ? formatCustomSum(user.custom_sum) : "";
+                
+                let bottomRowHtml = (deviceHtml || sumHtml) ? `<div style="display: flex; gap: 8px; align-items: center; margin-top: 5px;">${deviceHtml}${sumHtml}</div>` : "";
 
                 item.innerHTML = `
                     <div class="avatar-container" onclick="showDetail('${user.id}')">
@@ -558,7 +588,7 @@
                             <span class="id-badge" onclick="copyIdFromList(event, '${showId}')">(${showId})</span>
                         </div>
                         <div class="user-inv-text">Инв: ${colorizeInv(user.inv)}</div>
-                        ${deviceHtml}
+                        ${bottomRowHtml}
                     </div>
                     ${tbText}
                     ${bell}
@@ -652,7 +682,7 @@
                 return showToast("⚠️ Пользователь уже есть в базе!", "warning"); 
             }
 
-            pendingUsers.push({ id: checkId, timestamp: Date.now(), name: "Загрузка...", avatar: "", url: input, status: 0, hours: "...", inv: "⏳ Сканирую...", tb_status: "none", notif: 0, is_checker: 0, device: "" });
+            pendingUsers.push({ id: checkId, timestamp: Date.now(), name: "Загрузка...", avatar: "", url: input, status: 0, hours: "...", inv: "⏳ Сканирую...", tb_status: "none", notif: 0, is_checker: 0, device: "", custom_sum: "" });
             usersData.unshift(pendingUsers[pendingUsers.length-1]);
             filterList(true);
 
@@ -676,7 +706,7 @@
             
             for (let url of finalUrls) {
                 let checkId = extractId(url);
-                pendingUsers.push({ id: checkId, timestamp: Date.now(), name: "Очередь...", avatar: "", url: url, status: 0, hours: "...", inv: "⏳ В очереди...", tb_status: "none", notif: 0, is_checker: 0, device: "" });
+                pendingUsers.push({ id: checkId, timestamp: Date.now(), name: "Очередь...", avatar: "", url: url, status: 0, hours: "...", inv: "⏳ В очереди...", tb_status: "none", notif: 0, is_checker: 0, device: "", custom_sum: "" });
                 usersData.unshift(pendingUsers[pendingUsers.length-1]);
             }
             
@@ -688,19 +718,32 @@
         document.getElementById("new-user-input").addEventListener("input", () => filterList(true));
         document.getElementById("new-user-input").addEventListener("keydown", e => { if (e.key === "Enter") addUserFromInput(); });
         document.getElementById("detail-device").addEventListener("keydown", e => { if (e.key === "Enter") { saveDevice(); document.getElementById("detail-device").blur();} });
+        document.getElementById("detail-custom-sum").addEventListener("keydown", e => { if (e.key === "Enter") { saveCustomSum(); document.getElementById("detail-custom-sum").blur();} });
 
         function saveDevice() {
             if (!currentUser) return;
             let newDevice = document.getElementById('detail-device').value.trim();
             currentUser.device = newDevice;
-            
             updateLocalCache(currentUser.id, 'device', newDevice);
-            
             let userIdx = usersData.findIndex(u => u.id === currentUser.id);
             if (userIdx > -1) { usersData[userIdx].device = newDevice; }
 
             setButtonLoading('btn-save-device', true, '💾');
             sendSilentCommand({ action: "update_device", steam_id: currentUser.id, device: newDevice }, "Сохраняю ПК... ⏳");
+            filterList(false);
+        }
+
+        // --- СОХРАНЕНИЕ СУММЫ ---
+        function saveCustomSum() {
+            if (!currentUser) return;
+            let newSum = document.getElementById('detail-custom-sum').value.trim();
+            currentUser.custom_sum = newSum;
+            updateLocalCache(currentUser.id, 'custom_sum', newSum);
+            let userIdx = usersData.findIndex(u => u.id === currentUser.id);
+            if (userIdx > -1) { usersData[userIdx].custom_sum = newSum; }
+
+            setButtonLoading('btn-save-sum', true, '💾');
+            sendSilentCommand({ action: "update_custom_sum", steam_id: currentUser.id, sum: newSum }, "Сохраняю сумму... ⏳");
             filterList(false);
         }
 
@@ -712,7 +755,7 @@
             
             let checkId = extractId(input);
             let chkId = `chk_${checkId}`;
-            pendingUsers.push({ id: chkId, timestamp: Date.now(), name: "Загрузка...", avatar: "", url: input, status: 0, hours: "...", inv: "⏳ Сканирую...", tb_status: "none", notif: 0, is_checker: 1, device: "" });
+            pendingUsers.push({ id: chkId, timestamp: Date.now(), name: "Загрузка...", avatar: "", url: input, status: 0, hours: "...", inv: "⏳ Сканирую...", tb_status: "none", notif: 0, is_checker: 1, device: "", custom_sum: "" });
             usersData.unshift(pendingUsers[pendingUsers.length-1]);
             
             renderChecker();
@@ -809,7 +852,6 @@
         document.getElementById("snat-time").addEventListener("keydown", e => { if (e.key === "Enter") { saveSnat(); document.getElementById("snat-time").blur();} });
         document.getElementById("snat-log").addEventListener("keydown", e => { if (e.key === "Enter") { saveSnat(); document.getElementById("snat-log").blur();} });
 
-        // ДОБАВЛЕН ЖЕСТКИЙ ЛОКАЛЬНЫЙ КЭШ ДЛЯ СТАТУСОВ (Трейдбан, снят, тд), ЧТОБЫ НЕ ПРЫГАЛИ
         function saveTradebanState(status, timeStamp, logNum = "") {
             if (!currentUser) return;
             currentUser.tb_status = status; currentUser.tb_time = timeStamp; currentUser.log = logNum;
@@ -852,6 +894,7 @@
             document.getElementById('detail-id').innerText = currentUser.id;
             document.getElementById('detail-added-date').innerText = currentUser.added_date ? currentUser.added_date : "Ранее";
             document.getElementById('detail-device').value = currentUser.device || "";
+            document.getElementById('detail-custom-sum').value = currentUser.custom_sum || "";
             
             let statusText = currentUser.game ? `🎮 ${currentUser.game}` : (currentUser.status === 1 ? "🟢 В сети" : (currentUser.status === 0 ? "🔴 Оффлайн" : "🟡 Отошел"));
             document.getElementById('detail-status').innerHTML = statusText;

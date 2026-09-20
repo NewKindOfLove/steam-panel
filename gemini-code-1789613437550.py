@@ -15,14 +15,13 @@ import aiohttp
 import aiosqlite
 
 # --- КОНФИГУРАЦИЯ ---
-BOT_TOKEN = "8858053496:AAEGN_g_qCwqC7ZhrCHz35i2oEJNIwMy4G8"
+BOT_TOKEN = "8858053496:AAEGN_g_qCwqC7ZhrCHz35i2oEJNIwMy4G8" 
 STEAM_API_KEYS = [
     "58078C086C8EB81A26316C824EBBF452",
     "AA7E37631CE33F6D2E802B87B9438C5F",
     "354B4A89A071C82E0213772519B80AAA"
 ]
 
-# ВОЗВРАЩАЕМ ГРУППУ И ТОПИКИ
 GROUP_ID = -1003937921596
 TOPIC_SYSTEM = 3  
 TOPIC_LOGS = 12
@@ -40,11 +39,9 @@ TG_CMD = None
 
 needs_sync = False
 
-# --- УМНАЯ ОТПРАВКА: РАЗДЕЛЕНИЕ ПО ТОПИКАМ ---
 async def send_alert(text, is_system=False, **kwargs):
     try:
         if is_system:
-            # СИСТЕМА (Топик 3): Одно редактируемое сообщение
             now = datetime.now().strftime("%d.%m %H:%M:%S")
             log_line = f"[{now}] {text}"
             
@@ -80,7 +77,6 @@ async def send_alert(text, is_system=False, **kwargs):
                     await db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('status_msg_id', ?)", (str(msg.message_id),))
                     await db.commit()
         else:
-            # ЮЗЕРЫ (Топик 12): Каждое действие - отдельное сообщение
             await bot.send_message(GROUP_ID, text, message_thread_id=TOPIC_LOGS, parse_mode="HTML", **kwargs)
             
     except Exception as e:
@@ -116,6 +112,8 @@ async def init_telegraph():
         try: await db.execute("ALTER TABLE users ADD COLUMN log_number TEXT DEFAULT ''")
         except: pass
         try: await db.execute("ALTER TABLE users ADD COLUMN device_name TEXT DEFAULT ''")
+        except: pass
+        try: await db.execute("ALTER TABLE users ADD COLUMN custom_sum TEXT DEFAULT ''")
         except: pass
         
         await db.execute("DELETE FROM users WHERE is_checker = 1")
@@ -158,12 +156,12 @@ async def sync_to_cloud():
     try:
         users_list = []
         async with aiosqlite.connect(DB_NAME, timeout=20.0) as db:
-            async with db.execute("SELECT steam_id, name, avatar, profile_url, last_status, last_game, note, cs_hours, inv_value, notifications, tb_status, tb_time, added_date, is_checker, log_number, device_name FROM users") as cursor:
+            async with db.execute("SELECT steam_id, name, avatar, profile_url, last_status, last_game, note, cs_hours, inv_value, notifications, tb_status, tb_time, added_date, is_checker, log_number, device_name, custom_sum FROM users") as cursor:
                 for u in await cursor.fetchall():
                     users_list.append({
                         "id": u[0], "name": u[1], "avatar": u[2], "url": u[3], "status": u[4], "game": u[5], 
                         "note": u[6], "hours": u[7], "inv": u[8], "notif": u[9], "tb_status": u[10], "tb_time": u[11],
-                        "added_date": u[12], "is_checker": u[13], "log": u[14], "device": u[15]
+                        "added_date": u[12], "is_checker": u[13], "log": u[14], "device": u[15], "custom_sum": u[16]
                     })
         
         json_str = json.dumps(users_list, separators=(',', ':'))
@@ -369,7 +367,6 @@ async def poll_commands():
                                         INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date)
                                         VALUES (?, ?, ?, ?, ?, ?, ?, 1, '')
                                     """, (chk_id, "❌ Не найдено", "", url, 0, "...", "Ошибка"))
-                                    await send_alert(f"❌ Чекер: Неверная ссылка ({url})", is_system=True)
                             except Exception:
                                 pass
                             await db.commit()
@@ -410,9 +407,12 @@ async def poll_commands():
                                 for res in results:
                                     try:
                                         sid, real_url, name, avatar, status, hrs, inv = res
+                                        async with db.execute("SELECT steam_id FROM users WHERE steam_id = ?", (sid,)) as cursor:
+                                            if await cursor.fetchone(): continue
+                                            
                                         await db.execute("""
-                                            INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications, device_name)
-                                            VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, '')
+                                            INSERT INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications, device_name, custom_sum)
+                                            VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, '', '')
                                         """, (sid, name, avatar, real_url, status, hrs, inv, current_date))
                                         chunk_added += 1
                                     except Exception as e:
@@ -434,29 +434,31 @@ async def poll_commands():
                                 if not new_steam_id:
                                     fallback_id = url.strip('/').split('/')[-1] if '/' in url else url
                                     await db.execute("""
-                                        INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications, device_name)
-                                        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, '')
+                                        INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications, device_name, custom_sum)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, '', '')
                                     """, (fallback_id, "❌ Ошибка ссылки", "", url, 0, "...", "Ошибка", current_date))
                                 else:
-                                    profile = await get_steam_profile(session, new_steam_id)
-                                    name = profile.get('personaname', 'ОШИБКА Steam') if profile else 'ОШИБКА Steam'
-                                    avatar = profile.get('avatarfull', '') if profile else ''
-                                    status = profile.get('personastate', 0) if profile else 0
-                                    real_url = profile.get('profileurl', url) if profile else url
-                                    
-                                    hrs_task = get_cs_hours(session, new_steam_id)
-                                    inv_task = get_inventory_cs2(session, new_steam_id)
-                                    cs_hours, inv_val = await asyncio.gather(hrs_task, inv_task)
-                                    
-                                    await db.execute("""
-                                        INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications, device_name)
-                                        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, '')
-                                    """, (new_steam_id, name, avatar, real_url, status, cs_hours, inv_val, current_date))
+                                    async with db.execute("SELECT steam_id FROM users WHERE steam_id = ?", (new_steam_id,)) as cursor:
+                                        if not await cursor.fetchone():
+                                            profile = await get_steam_profile(session, new_steam_id)
+                                            name = profile.get('personaname', 'ОШИБКА Steam') if profile else 'ОШИБКА Steam'
+                                            avatar = profile.get('avatarfull', '') if profile else ''
+                                            status = profile.get('personastate', 0) if profile else 0
+                                            real_url = profile.get('profileurl', url) if profile else url
+                                            
+                                            hrs_task = get_cs_hours(session, new_steam_id)
+                                            inv_task = get_inventory_cs2(session, new_steam_id)
+                                            cs_hours, inv_val = await asyncio.gather(hrs_task, inv_task)
+                                            
+                                            await db.execute("""
+                                                INSERT INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications, device_name, custom_sum)
+                                                VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, '', '')
+                                            """, (new_steam_id, name, avatar, real_url, status, cs_hours, inv_val, current_date))
                             except Exception as e:
                                 fallback_id = url.strip('/').split('/')[-1] if '/' in url else url
                                 await db.execute("""
-                                    INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications, device_name)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, '')
+                                    INSERT OR REPLACE INTO users (steam_id, name, avatar, profile_url, last_status, cs_hours, inv_value, is_checker, added_date, notifications, device_name, custom_sum)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, '', '')
                                 """, (fallback_id, "❌ Ошибка / Таймаут", "", url, 0, "...", "Ошибка", current_date))
                             
                             await db.commit()
@@ -466,6 +468,11 @@ async def poll_commands():
                             await db.execute("UPDATE users SET device_name = ? WHERE steam_id = ?", (data.get("device", ""), steam_id))
                             await db.commit()
                             await sync_to_cloud() 
+
+                        elif action == "update_custom_sum":
+                            await db.execute("UPDATE users SET custom_sum = ? WHERE steam_id = ?", (data.get("sum", ""), steam_id))
+                            await db.commit()
+                            await sync_to_cloud()
 
                         elif action == "approve_checker":
                             if steam_id.startswith("chk_"):
